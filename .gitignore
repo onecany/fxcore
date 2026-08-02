@@ -1,0 +1,83 @@
+# ============================================================
+
+# ── 环境变量与密钥(绝不提交) ────────────────────────────────
+.env
+config.json
+configbak.json
+secrets/
+ssl/
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+rsa_key*
+
+# ── 加密相关 ─────────────────────────────────────────────────
+DATA_ENCRYPTION_KEY=*
+*.enc
+
+# ── 数据目录(数据库、日志等) ────────────────────────────────
+data/
+*.db
+decision_logs/
+
+# ── 编译产物 ─────────────────────────────────────────────────
+fxcore
+fxcore-server
+fxcore-auto
+*.exe
+*.test
+*.out
+.gocache/
+.gstack/
+
+# ── Go ────────────────────────────────────────────────────────
+*.test
+*.out
+coverage.out
+
+# ── Node.js / 前端 ───────────────────────────────────────────
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── ESLint 临时报告 ──────────────────────────────────────────
+eslint-*.json
+
+# ── 日志与临时文件 ───────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.backup
+.cache/
+screenlog.*
+img.png
+
+# ── 操作系统 ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE / 编辑器 ─────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ── AI 工具本地状态(不进仓库) ───────────────────────────────
+.claude/
+.mimocode/
+.cursor/
+.agents/
+skills-lock.json
+.gh-config/
+CLAUDE.md
+.hermes.md
+
+# ── 测试与 QA 本地产物 ───────────────────────────────────────
+screenshots/
