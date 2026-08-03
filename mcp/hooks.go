@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
+	"fxcore/httpclient"
 	"strings"
 )
 
@@ -14,7 +14,7 @@ import (
 type defaultHooks struct{}
 
 // Call executes the HTTP request through the client's configured transport.
-func (defaultHooks) Call(client *Client, req *http.Request) (*http.Response, error) {
+func (defaultHooks) Call(client *Client, req *httpclient.Request) (*httpclient.Response, error) {
 	return client.HTTPClient.Do(req)
 }
 
@@ -28,7 +28,7 @@ func (defaultHooks) BuildUrl(client *Client, _ *Request) string {
 }
 
 // SetAuthHeader applies the standard Bearer authentication.
-func (defaultHooks) SetAuthHeader(client *Client, req *http.Request) {
+func (defaultHooks) SetAuthHeader(client *Client, req *httpclient.Request) {
 	if client.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+client.APIKey)
 	}
@@ -50,7 +50,7 @@ func (h defaultHooks) BuildMCPRequestBody(client *Client, req *Request) ([]byte,
 }
 
 // BuildRequest assembles the full HTTP request: URL, body, auth headers.
-func (h defaultHooks) BuildRequest(client *Client, req *Request) (*http.Request, error) {
+func (h defaultHooks) BuildRequest(client *Client, req *Request) (*httpclient.Request, error) {
 	body, err := client.Hooks.BuildRequestBodyFromRequest(client, req)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: build request body: %w", err)
@@ -59,7 +59,7 @@ func (h defaultHooks) BuildRequest(client *Client, req *Request) (*http.Request,
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, client.Hooks.BuildUrl(client, req), bytes.NewReader(body))
+	httpReq, err := httpclient.NewRequest(ctx, httpclient.MethodPost, client.Hooks.BuildUrl(client, req), bytes.NewReader(body), nil)
 	if err != nil {
 		return nil, fmt.Errorf("mcp: build request: %w", err)
 	}

@@ -6,8 +6,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"fxcore/httpclient"
 	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -66,7 +66,7 @@ func NewClient(opts ...ClientOption) AIClient {
 	}
 	applyProviderDefaults(cfg)
 	if cfg.HTTPClient == nil {
-		cfg.HTTPClient = &http.Client{Timeout: cfg.Timeout}
+		cfg.HTTPClient = &httpclient.Client{Timeout: cfg.Timeout}
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = NewNoopLogger()
@@ -177,7 +177,7 @@ func (c *Client) CallWithRequestStream(req *Request, onChunk func(string)) (stri
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Hooks.BuildUrl(c, &streamReq), bytes.NewReader(body))
+	httpReq, err := httpclient.NewRequest(ctx, httpclient.MethodPost, c.Hooks.BuildUrl(c, &streamReq), bytes.NewReader(body), nil)
 	if err != nil {
 		return "", fmt.Errorf("mcp: build stream request: %w", err)
 	}

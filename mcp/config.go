@@ -1,8 +1,9 @@
 package mcp
 
 import (
-	"net/http"
 	"time"
+
+	"fxcore/httpclient"
 )
 
 // Provider identifiers. These are external contracts used by the upper
@@ -71,7 +72,7 @@ type Config struct {
 	RetryableErrors []string
 	Timeout         time.Duration
 	Logger          Logger
-	HTTPClient      *http.Client
+	HTTPClient      *httpclient.Client
 
 	// Provider-specific extension configs (set via With*Config options).
 	DeepSeek DeepSeekConfig
@@ -88,7 +89,7 @@ type Client struct {
 	Model      string
 	UseFullURL bool
 	MaxTokens  int
-	HTTPClient *http.Client
+	HTTPClient *httpclient.Client
 	Log        Logger
 	Cfg        *Config
 	Hooks      ClientHooks
@@ -99,11 +100,11 @@ type Client struct {
 // parsing and retry classification while sharing the retry/timeout/logging
 // framework of *Client.
 type ClientHooks interface {
-	Call(client *Client, req *http.Request) (*http.Response, error)
+	Call(client *Client, req *httpclient.Request) (*httpclient.Response, error)
 	BuildMCPRequestBody(client *Client, req *Request) ([]byte, error)
 	BuildUrl(client *Client, req *Request) string
-	BuildRequest(client *Client, req *Request) (*http.Request, error)
-	SetAuthHeader(client *Client, req *http.Request)
+	BuildRequest(client *Client, req *Request) (*httpclient.Request, error)
+	SetAuthHeader(client *Client, req *httpclient.Request)
 	MarshalRequestBody(client *Client, payload any) ([]byte, error)
 	BuildRequestBodyFromRequest(client *Client, req *Request) ([]byte, error)
 	ParseMCPResponse(client *Client, body []byte) (string, error)

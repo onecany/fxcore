@@ -3,9 +3,9 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
+	"fxcore/httpclient"
 	"fxcore/mcp"
 )
 
@@ -46,7 +46,7 @@ func (h claudeHooks) BuildUrl(client *mcp.Client, _ *mcp.Request) string {
 	return strings.TrimRight(client.BaseURL, "/") + "/v1/messages"
 }
 
-func (h claudeHooks) SetAuthHeader(client *mcp.Client, req *http.Request) {
+func (h claudeHooks) SetAuthHeader(client *mcp.Client, req *httpclient.Request) {
 	if client.APIKey != "" {
 		req.Header.Set("x-api-key", client.APIKey)
 		req.Header.Set("anthropic-version", "2023-06-01")

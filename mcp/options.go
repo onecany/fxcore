@@ -1,8 +1,9 @@
 package mcp
 
 import (
-	"net/http"
 	"time"
+
+	"fxcore/httpclient"
 )
 
 // ClientOption mutates the Config before a Client is built.
@@ -30,7 +31,7 @@ func WithLogger(l Logger) ClientOption {
 	return func(c *Config) { c.Logger = l }
 }
 
-func WithHTTPClient(hc *http.Client) ClientOption {
+func WithHTTPClient(hc *httpclient.Client) ClientOption {
 	return func(c *Config) { c.HTTPClient = hc }
 }
 
