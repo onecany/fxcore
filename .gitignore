@@ -78,6 +78,7 @@ skills-lock.json
 .gh-config/
 CLAUDE.md
 .hermes.md
+.continue/
 
 # ── 测试与 QA 本地产物 ───────────────────────────────────────
 screenshots/
