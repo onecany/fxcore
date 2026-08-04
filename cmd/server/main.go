@@ -14,6 +14,8 @@
 //	RSA_PRIVATE_KEY    API Key 加密私钥 PEM/base64（默认启动时生成，仅存内存）
 //	REDIS_URL          Redis 连接串（默认降级内存实现）
 //	CORS_ORIGINS       追加 CORS 白名单（逗号分隔）
+//	TLS_CERT_FILE      TLS 证书 PEM 路径；与 TLS_KEY_FILE 同时设置时启用 HTTPS + HTTP/2
+//	TLS_KEY_FILE       TLS 私钥 PEM 路径
 //	ENV_FILE           .env 文件路径（默认 .env）
 package main
 
@@ -31,6 +33,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/net/http2"
 
 	v1 "fxcore/internal/api/v1"
 	"fxcore/internal/pkg/cache"
@@ -124,9 +127,25 @@ func main() {
 		}
 	}()
 
-	log.Printf("[main] fxcore API listening on http://127.0.0.1:%s (api/v1 + ws/dashboard)", port)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("[main] listen: %v", err)
+	// HTTP/2 显式配置（API设计.md §2 基建）：
+	// - TLS 模式下 Go net/http 通过 ALPN 自动协商 h2，ConfigureServer 显式开启并限制并发流
+	// - 明文模式无 TLS 无法协商 h2（h2c 不在范围），自动降级 HTTP/1.1
+	certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
+	if certFile != "" && keyFile != "" {
+		if err := http2.ConfigureServer(srv, &http2.Server{
+			MaxConcurrentStreams: 100, // 单连接并发流上限（防 h2 多路复用耗尽连接）
+		}); err != nil {
+			log.Fatalf("[main] configure http2: %v", err)
+		}
+		log.Printf("[main] fxcore API listening on https://127.0.0.1:%s (HTTP/2 via TLS/ALPN, api/v1 + ws/dashboard)", port)
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("[main] listen: %v", err)
+		}
+	} else {
+		log.Printf("[main] fxcore API listening on http://127.0.0.1:%s (HTTP/1.1; set TLS_CERT_FILE/TLS_KEY_FILE for HTTPS + HTTP/2)", port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("[main] listen: %v", err)
+		}
 	}
 	log.Println("[main] bye")
 }
@@ -152,10 +171,12 @@ func splitCSV(s string) []string {
 	return out
 }
 
+// randomSecret 生成随机密钥（JWT secret）。fail-closed：crypto/rand 失败即 panic，
+// 不可退化为可预测时间戳（与 store.NewRefreshToken 一致）。
 func randomSecret() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return time.Now().Format("20060102150405.000000000")
+		panic("crypto/rand failed: " + err.Error())
 	}
 	return hex.EncodeToString(b)
 }
