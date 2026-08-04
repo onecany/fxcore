@@ -33,6 +33,17 @@ func NewAuthHandler(s *store.Store, jm *jwt.Manager, tokens cache.TokenStore, ac
 // Login POST /auth/login
 // 校验账密 -> 签发 access token（HttpOnly Cookie）-> 生成 refresh token（7 天）。
 // 响应携带 sign_secret（请求签名 user_secret）与 refresh_token（扩展字段，见复盘）。
+// Login 登录。
+// @Summary 登录
+// @Description 校验账密，下发 access token（HttpOnly Cookie）与 refresh token / sign_secret
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.LoginRequest true "登录凭据"
+// @Success 200 {object} dto.ApiResponse[dto.LoginResponse]
+// @Failure 400 {object} dto.ErrorResponse "1001 参数错误"
+// @Failure 429 {object} dto.ErrorResponse "1005 登录限流（5 次/分钟/IP）"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -66,6 +77,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // Refresh POST /auth/refresh（Refresh 轮换）
 // 原子轮换：旧 token 删除 + 新 token 写入一步完成（S4：并发用同一 token 刷新只有一个成功，
 // 轮换后的旧 token 立即作废，重放即 1101）。
+// Refresh 刷新令牌（轮换制：旧 token 立即作废，重放返回 1101）。
+// @Summary 刷新令牌
+// @Description 轮换 refresh token：旧 token 作废并返回新 token + 新 access token + sign_secret
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.RefreshRequest true "旧 refresh token"
+// @Success 200 {object} dto.ApiResponse[dto.RefreshResponse]
+// @Failure 400 {object} dto.ErrorResponse "1001 参数错误"
+// @Failure 401 {object} dto.ErrorResponse "1101 refresh token 无效或已轮换"
+// @Failure 429 {object} dto.ErrorResponse "1005 刷新限流"
+// @Router /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req dto.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -99,6 +122,15 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 }
 
 // Logout POST /auth/logout：作废 refresh token + 清除 Cookie。
+// Logout 登出（吊销 refresh token + 清除 Cookie）。
+// @Summary 登出
+// @Description 携带 refresh_token 时服务端吊销；始终清除 access Cookie
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.RefreshRequest false "refresh token（可选，携带则吊销）"
+// @Success 200 {object} dto.ApiResponse[any]
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req dto.RefreshRequest

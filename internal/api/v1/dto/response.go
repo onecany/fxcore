@@ -21,10 +21,36 @@ func OK[T any](data T, requestID string) ApiResponse[T] {
 	return ApiResponse[T]{Code: 0, Message: "success", Data: data, Timestamp: time.Now().UnixMilli(), RequestID: requestID}
 }
 
-// PaginatedData 分页数据（与 contract.ts PaginatedData 对齐）。
+// ErrorResponse 统一错误信封（swagger 引用用；实际由 middleware.WriteError 输出）。
+type ErrorResponse struct {
+	Code      int            `json:"code"`      // 业务错误码（1001-1500 矩阵）
+	Message   string         `json:"message"`   // 可读错误信息
+	Data      map[string]any `json:"data"`      // 1001 时字段级错误映射，其余为 null
+	Timestamp int64          `json:"timestamp"` // Unix 毫秒
+	RequestID string         `json:"request_id"`// 链路追踪 ID
+}
+
+// PaginatedData 分页响应（列表端点）。
 type PaginatedData[T any] struct {
 	Items      []T       `json:"items"`
 	Pagination Paginator `json:"pagination"`
+}
+
+// ========== swagger 引用类型（swag 泛型嵌套解析限制，用具体类型替代） ==========
+
+// AIModelDTOList 模型列表响应。
+type AIModelDTOList []AIModelDTO
+
+// ProviderOptionList 提供商列表响应。
+type ProviderOptionList []ProviderOption
+
+// PositionDTOList 持仓列表响应。
+type PositionDTOList []PositionDTO
+
+// TraderPage 交易员分页响应（结构与 PaginatedData[TraderDTO] 一致）。
+type TraderPage struct {
+	Items      []TraderDTO `json:"items"`
+	Pagination Paginator   `json:"pagination"`
 }
 
 // Paginator 分页信息。

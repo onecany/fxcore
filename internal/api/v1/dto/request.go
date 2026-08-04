@@ -63,11 +63,16 @@ type CreateModelRequest struct {
 	Config    json.RawMessage `json:"config"` // 温度、TopP 等
 }
 
-// TestModelRequest 模型连通性测试请求。
+// TestModelRequest 连通测试请求（可选；空请求体时使用已存 Key）。
 type TestModelRequest struct {
 	APIKey    string `json:"api_key"`
 	ModelName string `json:"model_name"`
 	Provider  string `json:"provider"`
+}
+
+// ClosePositionRequest 平仓请求（可选；缺省 pnl=0）。
+type ClosePositionRequest struct {
+	PnL *float64 `json:"pnl"`
 }
 
 // ========== 交易员模块 ==========

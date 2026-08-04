@@ -1,5 +1,11 @@
 // FXcore API 服务入口（API设计.md 7.1 蓝图的 cmd/server/main.go）。
 //
+// @title FXcore API
+// @version 1.0
+// @description AI 驱动的加密货币交易智能体平台 API（v1）。认证：access token 存 HttpOnly Cookie；写操作需 X-Signature/X-Timestamp/X-Nonce 签名头（HMAC-SHA256，±5min，nonce 防重放）。
+// @host localhost:8080
+// @BasePath /api/v1
+//
 // 配置加载顺序（后加载者不覆盖已存在的值）：
 //   1. 进程环境变量（shell export / systemd Environment）
 //   2. .env 文件（ENV_FILE 指定路径，默认工作目录下 .env；不存在则忽略）

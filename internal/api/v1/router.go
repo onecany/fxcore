@@ -7,8 +7,11 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"fxcore/internal/api/v1/handler"
+	"fxcore/internal/api/v1/openapi3"
 	"fxcore/internal/api/v1/service"
 	"fxcore/internal/middleware"
 	"fxcore/internal/pkg/cache"
@@ -53,9 +56,28 @@ func NewRouter(d Deps) *gin.Engine {
 	dashboardH := handler.NewDashboardHandler(d.Store, d.JWT)
 	r.GET("/ws/dashboard", dashboardH.WS)
 
+	// ========== Swagger UI（OpenAPI 3.0，API设计.md §2 基建） ==========
+	// 访问 /swagger/index.html 查看文档。UI 通过 URL 参数加载 embed 的
+	// OpenAPI 3.1 规范（/api/v1/openapi3.json），不依赖 docs 包——
+	// 仓库根 docs/ 保持纯文档目录（无 Go 包）。
+	// /swagger/doc.json 遗留端点（gin-swagger 内部读 SwaggerInfo，docs 包
+	// 移除后会 500）在此显式接管为 3.1 spec。
+	r.GET("/swagger/*any", func(c *gin.Context) {
+		if c.Param("any") == "/doc.json" {
+			c.Data(200, "application/json; charset=utf-8", openapi3.Spec)
+			return
+		}
+		ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/api/v1/openapi3.json"))(c)
+	})
+
 	// ========== /api/v1 组（gzip 压缩传输，文档 2） ==========
 	api := r.Group("/api/v1", gzip.Gzip(gzip.DefaultCompression))
 	{
+		// OpenAPI 3.1 规范（公开文档，无需认证）
+		api.GET("/openapi3.json", func(c *gin.Context) {
+			c.Data(200, "application/json; charset=utf-8", openapi3.Spec)
+		})
+
 		// --- 认证（auth 限流：5 次/分钟/IP） ---
 		authH := handler.NewAuthHandler(d.Store, d.JWT, d.Tokens, d.AccessTTL)
 		auth := api.Group("/auth", middleware.RateLimit(d.Limiter, "auth"))

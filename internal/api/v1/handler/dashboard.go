@@ -49,6 +49,13 @@ func NewDashboardHandler(s *store.Store, jm *jwt.Manager) *DashboardHandler {
 
 // GetDashboard GET /dashboard
 // 使用 sync.WaitGroup 并发聚合四路数据（文档 6.4 与 §8 防错清单）。
+// GetDashboard 仪表盘 3 合 1（账户汇总 + 活跃交易员 + 最近持仓 + 健康度）。
+// @Summary 仪表盘聚合
+// @Description 账户汇总（基准 10000 + 累计已平仓 PnL）、活跃交易员、最近 5 条持仓、AI/交易所延迟
+// @Tags dashboard
+// @Produce json
+// @Success 200 {object} dto.ApiResponse[dto.DashboardSummary]
+// @Router /dashboard [get]
 func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 	middleware.WriteOK(c, h.aggregate())
 }
@@ -56,6 +63,13 @@ func (h *DashboardHandler) GetDashboard(c *gin.Context) {
 // WS GET /ws/dashboard?token=xxx
 // 鉴权（query token）-> 升级 WebSocket -> 5s 推送快照 + 30s 心跳。
 // S5 资源防护：连接数上限、读帧上限、读超时。
+// WS WebSocket 实时推送（5s 快照 + 30s 心跳）。
+// @Summary WebSocket 实时推送
+// @Description 鉴权：query token 为 JWT access token；5s 推一次仪表盘快照，30s 心跳
+// @Tags dashboard
+// @Success 101 {string} string "WebSocket 升级成功"
+// @Failure 401 {object} dto.ErrorResponse "1002 token 无效"
+// @Router /ws/dashboard [get]
 func (h *DashboardHandler) WS(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
