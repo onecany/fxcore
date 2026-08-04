@@ -128,6 +128,13 @@ const notFound = () =>
     { status: 404, headers: { 'Content-Type': 'application/json' } },
   );
 
+// 业务冲突：code + HTTP 状态（与后端语义对齐，L9）
+const apiError = (code: number, httpStatus: number, message: string) =>
+  new HttpResponse(
+    JSON.stringify({ code, message, data: null, timestamp: Date.now(), requestId: 'mock-error' }),
+    { status: httpStatus, headers: { 'Content-Type': 'application/json' } },
+  );
+
 export const traderHandlers = [
   // GET /traders：分页 + 状态过滤 + 字段过滤
   http.get('/api/v1/traders', ({ request }) => {
@@ -190,23 +197,27 @@ export const traderHandlers = [
   }),
 
   // 状态机控制：start / pause / resume / stop
+  // L9：错误语义与后端对齐（1204 运行中、1001 已处于目标态、1004 非法迁移）
   ...(['start', 'pause', 'resume', 'stop'] as const).map((action) =>
     http.post(`/api/v1/traders/:id/${action}`, ({ params }) => {
       const t = traders.find((x) => x.id === params.id);
       if (!t) return notFound();
+
+      if (action === 'start' || action === 'resume') {
+        if (t.status === 'running') return apiError(1204, 409, 'trader is already running');
+        if (t.status === 'error') return notFound(); // 后端 error->running 非法（1004）
+        if (action === 'resume' && t.status !== 'paused') return notFound(); // 非 paused 非法恢复
+        // start: idle/paused/stopped -> running 全部合法（后端 stopped 允许重启）
+      } else if (action === 'pause') {
+        if (t.status !== 'running') {
+          return t.status === 'paused' ? apiError(1001, 400, 'trader is already paused') : notFound();
+        }
+      } else if (action === 'stop') {
+        if (t.status === 'stopped') return apiError(1001, 400, 'trader is already stopped');
+        if (t.status === 'idle') return notFound(); // 后端 idle->stopped 非法（1004）
+      }
+
       const next: Record<string, string> = { start: 'running', pause: 'paused', resume: 'running', stop: 'stopped' };
-      if (action === 'start' && t.status === 'running') {
-        return HttpResponse.json(
-          { code: 1204, message: 'trader is already running', data: null, timestamp: Date.now(), requestId: 'mock-1204' },
-          { status: 409 },
-        );
-      }
-      if (action === 'pause' && !['running'].includes(t.status)) {
-        return HttpResponse.json(
-          { code: 1004, message: 'illegal state transition', data: null, timestamp: Date.now(), requestId: 'mock-1004' },
-          { status: 404 },
-        );
-      }
       t.status = next[action];
       t.updated_at = new Date().toISOString();
       return HttpResponse.json(ok(null, `mock-trader-${action}`));

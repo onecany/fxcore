@@ -49,6 +49,9 @@ func (svc *TraderService) Create(in *dto.CreateTraderRequest) (*model.Trader, *m
 	if in.Schedule != nil && in.Schedule.Interval < 0 {
 		return nil, middleware.BadRequest("schedule.interval must be >= 0", nil)
 	}
+	if in.Schedule != nil && len(in.Schedule.ActiveHours) > dto.MaxActiveHours {
+		return nil, middleware.BadRequest("schedule.active_hours too many (max 24)", nil)
+	}
 	t := &model.Trader{
 		Name:        in.Name,
 		Exchange:    in.Exchange,
@@ -65,7 +68,13 @@ func (svc *TraderService) Create(in *dto.CreateTraderRequest) (*model.Trader, *m
 		}
 	}
 	svc.store.CreateTrader(t)
-	return t, nil
+	// L1：不能返回存活指针（handler 锁外序列化 vs WithTrader 锁内改写 = 数据竞争）。
+	// 重新取深拷贝返回。
+	created, ok := svc.store.GetTrader(t.ID)
+	if !ok {
+		return nil, middleware.Internal("trader created but not found")
+	}
+	return created, nil
 }
 
 // Update PATCH 部分更新（指针字段区分未传/置空）。
@@ -82,6 +91,9 @@ func (svc *TraderService) Update(id string, in *dto.UpdateTraderRequest) (*model
 	}
 	if in.Schedule != nil && in.Schedule.Interval < 0 {
 		return nil, middleware.BadRequest("schedule.interval must be >= 0", nil)
+	}
+	if in.Schedule != nil && len(in.Schedule.ActiveHours) > dto.MaxActiveHours {
+		return nil, middleware.BadRequest("schedule.active_hours too many (max 24)", nil)
 	}
 
 	updated, err := svc.store.WithTrader(id, func(t *model.Trader) error {
@@ -182,7 +194,8 @@ func (svc *TraderService) transition(id, to string) *middleware.APIError {
 	case errors.Is(err, errAlreadyStopped):
 		return middleware.BadRequest("trader is already "+to, nil)
 	case err != nil:
-		return middleware.NewAPIError(middleware.CodeBadRequest, 500, "state transition failed: "+err.Error())
+		// L8：内部错误必须用 1500（此前 1001 配 HTTP 500，前端误走字段高亮分支）
+		return middleware.Internal("state transition failed: " + err.Error())
 	}
 	return nil
 }

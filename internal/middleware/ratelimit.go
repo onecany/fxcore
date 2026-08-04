@@ -11,15 +11,17 @@ import (
 
 // rateLimit 类型（文档 6.3）。
 const (
-	rateAuth  = "auth"  // 5 次/分钟/IP
-	rateRead  = "read"  // 120 次/分钟/用户
-	rateWrite = "write" // 30 次/分钟/用户
+	rateAuth    = "auth"    // 5 次/分钟/IP（login/logout 防爆破）
+	rateRefresh = "refresh" // 20 次/分钟/用户（L11：多标签页刷新风暴独立配额）
+	rateRead    = "read"    // 120 次/分钟/用户
+	rateWrite   = "write"   // 30 次/分钟/用户
 )
 
 var rateLimits = map[string]int{
-	rateAuth:  5,
-	rateRead:  120,
-	rateWrite: 30,
+	rateAuth:    5,
+	rateRefresh: 20,
+	rateRead:    120,
+	rateWrite:   30,
 }
 
 // RateLimit 滑动窗口限流中间件。

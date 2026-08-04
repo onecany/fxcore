@@ -61,16 +61,18 @@ func NewRouter(d Deps) *gin.Engine {
 		auth := api.Group("/auth", middleware.RateLimit(d.Limiter, "auth"))
 		{
 			auth.POST("/login", authH.Login)
-			auth.POST("/refresh", authH.Refresh)
 			auth.POST("/logout", authH.Logout)
 		}
+		// refresh 独立配额（L11：多标签页 15min 并发刷新不应撞 auth 的 5/min/IP 防爆破配额被误登出）
+		api.POST("/auth/refresh", middleware.RateLimit(d.Limiter, "refresh"), authH.Refresh)
 
 		// --- 鉴权组（RequiresAuth：HttpOnly Cookie 中的 access token） ---
 		authed := api.Group("", middleware.RequiresAuth(d.JWT))
 		// 读接口（限流 120 次/分钟/用户）
 		read := authed.Group("", middleware.RateLimit(d.Limiter, "read"))
-		// 写接口（HMAC 签名校验 + nonce 防重放 + 限流 30 次/分钟/用户）
-		write := authed.Group("", middleware.RequireSignature(d.Store, d.Nonces), middleware.RateLimit(d.Limiter, "write"))
+		// 写接口（限流在前拦截、HMAC 签名 + nonce 防重放在后：
+		// L6 限流拒绝的请求不消耗 nonce；无签名攻击者先被 IP/用户限流挡住，省 HMAC CPU）
+		write := authed.Group("", middleware.RateLimit(d.Limiter, "write"), middleware.RequireSignature(d.Store, d.Nonces))
 
 		// --- AI 模型 ---
 		modelH := handler.NewModelHandler(service.NewModelService(d.Store, d.KeyManager))

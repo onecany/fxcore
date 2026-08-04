@@ -217,8 +217,8 @@ func (s *Store) UpdateTrader(t *model.Trader) {
 }
 
 // WithTrader 在写锁内原子执行状态迁移回调（读-改-写一体）。
-// 回调约定：必须先完成全部校验再修改字段（返回 error 时不做回滚，改动不落盘）。
-// 返回迁移后的深拷贝。这是交易员状态机的唯一正确入口：并发 start/pause 不会互相踩踏。
+// 回调入参为深拷贝副本：修改失败（返回 error）时 map 内对象不受任何影响，
+// 成功时才写回。这是交易员状态机的唯一正确入口：并发 start/pause 不会互相踩踏。
 func (s *Store) WithTrader(id string, mutate func(*model.Trader) error) (*model.Trader, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -226,16 +226,19 @@ func (s *Store) WithTrader(id string, mutate func(*model.Trader) error) (*model.
 	if !ok {
 		return nil, ErrNotFound
 	}
-	if err := mutate(t); err != nil {
-		return nil, err
+	cp := cloneTrader(t)
+	if err := mutate(cp); err != nil {
+		return nil, err // 副本上的改动丢弃，map 保持原样
 	}
-	t.UpdatedAt = time.Now().UTC()
-	return cloneTrader(t), nil
+	cp.UpdatedAt = time.Now().UTC()
+	s.traders[id] = cp
+	return cloneTrader(cp), nil
 }
 
 // WithTraderAndPositions 写锁内原子执行回调，同时提供持仓快照。
 // 用途：平仓后回写指标需要锁内重算胜率（不能调 ListPositions——同 goroutine
 // 写锁内取读锁会死锁），快照由本方法在锁内构造，无额外加锁。
+// 回调同样收到深拷贝副本，error 时不留改动。
 func (s *Store) WithTraderAndPositions(traderID string, mutate func(*model.Trader, []*model.Position) error) (*model.Trader, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -243,16 +246,18 @@ func (s *Store) WithTraderAndPositions(traderID string, mutate func(*model.Trade
 	if !ok {
 		return nil, ErrNotFound
 	}
+	cp := cloneTrader(t)
 	pos := make([]*model.Position, 0, len(s.positions))
 	for _, p := range s.positions {
-		cp := *p
-		pos = append(pos, &cp)
+		pcp := *p
+		pos = append(pos, &pcp)
 	}
-	if err := mutate(t, pos); err != nil {
+	if err := mutate(cp, pos); err != nil {
 		return nil, err
 	}
-	t.UpdatedAt = time.Now().UTC()
-	return cloneTrader(t), nil
+	cp.UpdatedAt = time.Now().UTC()
+	s.traders[traderID] = cp
+	return cloneTrader(cp), nil
 }
 
 // cloneTrader 深拷贝：Schedule 指针与 Parameters RawMessage 不共享底层。
@@ -329,20 +334,21 @@ func (s *Store) ClosePosition(id string, pnl float64) (*model.Position, bool) {
 }
 
 // NewRefreshToken 生成 refresh token（32 字节 hex）。
+// S2：crypto/rand 失败即 panic（fail-closed）——refresh token 是安全凭据，
+// 不可退化为可预测的时间戳；crypto/rand 失败意味着熵源系统级故障，panic 比降级安全。
 func NewRefreshToken() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000000")))
+		panic("crypto/rand failed: " + err.Error())
 	}
 	return hex.EncodeToString(b)
 }
 
-// newID 生成 32 位十六进制随机 ID。
+// newID 生成 32 位十六进制随机 ID（同样 fail-closed）。
 func newID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// crypto/rand 失败时退化为时间戳（理论上几乎不可能）
-		return hex.EncodeToString([]byte(time.Now().Format("20060102150405.000000000")))
+		panic("crypto/rand failed: " + err.Error())
 	}
 	return hex.EncodeToString(b)
 }

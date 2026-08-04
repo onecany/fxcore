@@ -18,11 +18,16 @@ type ListQuery struct {
 	Symbol string `form:"symbol" json:"symbol"`
 }
 
-// Normalized 返回规范化后的分页参数（page>=1, 1<=size<=100）。
+// Normalized 返回规范化后的分页参数（1<=page<=100000, 1<=size<=100）。
+// L2：page 必须钳制上限——(page-1)*size 在 page=MaxInt64 时整数溢出，
+// 切片越界直接 panic（已实证），且 (100000-1)*100 在 32/64 位下均安全。
 func (q *ListQuery) Normalized() (page, size int) {
 	page = q.Page
 	if page < 1 {
 		page = 1
+	}
+	if page > 100000 {
+		page = 100000
 	}
 	size = q.Size
 	if size < 1 {
@@ -38,8 +43,8 @@ func (q *ListQuery) Normalized() (page, size int) {
 
 // LoginRequest 登录请求。
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email,max=255"`
+	Password string `json:"password" binding:"required,max=128"`
 }
 
 // RefreshRequest 刷新令牌请求。
@@ -51,10 +56,10 @@ type RefreshRequest struct {
 
 // CreateModelRequest 创建/更新 AI 模型。api_key 后端 RSA 加密后落库。
 type CreateModelRequest struct {
-	Name      string          `json:"name" binding:"required"`
-	Provider  string          `json:"provider" binding:"required"`
-	ModelName string          `json:"model_name" binding:"required"`
-	APIKey    string          `json:"api_key" binding:"required"`
+	Name      string          `json:"name" binding:"required,max=64"`
+	Provider  string          `json:"provider" binding:"required,max=32"`
+	ModelName string          `json:"model_name" binding:"required,max=128"`
+	APIKey    string          `json:"api_key" binding:"required,max=512"`
 	Config    json.RawMessage `json:"config"` // 温度、TopP 等
 }
 
@@ -88,6 +93,9 @@ type Schedule struct {
 	ActiveHours []ActiveHours `json:"active_hours"`
 }
 
+// MaxActiveHours 活跃时段数量上限（S5：防超大数组入库）。
+const MaxActiveHours = 24
+
 // ActiveHours 活跃时段。
 type ActiveHours struct {
 	Start string `json:"start"` // "HH:MM"
@@ -96,10 +104,10 @@ type ActiveHours struct {
 
 // CreateTraderRequest 创建交易员请求。
 type CreateTraderRequest struct {
-	Name        string      `json:"name" binding:"required"`
-	Exchange    string      `json:"exchange" binding:"required"`
+	Name        string      `json:"name" binding:"required,max=64"`
+	Exchange    string      `json:"exchange" binding:"required,max=32"`
 	ModelConfig ModelConfig `json:"model_config" binding:"required"`
-	StrategyID  string      `json:"strategy_id" binding:"required"`
+	StrategyID  string      `json:"strategy_id" binding:"required,max=64"`
 	RiskConfig  RiskConfig  `json:"risk_config" binding:"required"`
 	Schedule    *Schedule   `json:"schedule"`
 }

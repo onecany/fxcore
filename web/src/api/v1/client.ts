@@ -199,7 +199,9 @@ instance.interceptors.response.use(
     const status = error.response?.status;
     const code = error.response?.data?.code;
     const message = error.response?.data?.message || getErrorMessage(code ?? -1, error.message);
-    const requestId = error.response?.data?.requestId;
+    // L7：错误信封与成功信封统一 request_id（原始 snake_case 字段，绕过类型声明的 requestId）
+    const rawBody = error.response?.data as (ApiResponse<unknown> & { request_id?: string }) | undefined;
+    const requestId = rawBody?.request_id;
     // 1001 字段高亮映射：后端 WriteError 把 fields 放进信封 data
     const fields = code === 1001 && error.response?.data?.data ? (error.response.data.data as Record<string, string>) : undefined;
 
@@ -211,6 +213,14 @@ instance.interceptors.response.use(
         (error.config as { [RETRY_MARK]?: boolean })[RETRY_MARK] = true;
         return instance(error.config); // 重新走请求拦截器（重签名）
       }
+      useAppStore.getState().clearAuth();
+      window.dispatchEvent(new CustomEvent('fx:unauthorized'));
+      return Promise.reject(new AppError(1101, 401, '登录已过期，请重新登录'));
+    }
+
+    // L10：重放后仍 401/1002（刷新轮换了 token 但请求仍被拒，如账号停用）——
+    // 不再静默返回 1002 卡死会话，按强制登出处理
+    if (status === 401 && code === 1002 && alreadyRetried) {
       useAppStore.getState().clearAuth();
       window.dispatchEvent(new CustomEvent('fx:unauthorized'));
       return Promise.reject(new AppError(1101, 401, '登录已过期，请重新登录'));

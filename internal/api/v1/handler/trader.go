@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"io"
 	"math"
 
 	"github.com/gin-gonic/gin"
@@ -177,7 +179,8 @@ func (h *TraderHandler) ClosePosition(c *gin.Context) {
 	var req struct {
 		PnL *float64 `json:"pnl"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		// 空 body 合法（pnl 默认 0）；EOF 之外才是坏 JSON
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}

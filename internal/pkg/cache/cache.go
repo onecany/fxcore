@@ -101,6 +101,15 @@ type memTokenStore struct {
 func (s *memTokenStore) Set(_ context.Context, token, userID string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// L5：防无界增长——超阈值时清理过期条目（refresh token 过期后通常不再被访问，惰性清理回收不了）
+	if len(s.items) > maxMemKeys {
+		now := time.Now()
+		for k, t := range s.items {
+			if now.After(t.exp) {
+				delete(s.items, k)
+			}
+		}
+	}
 	s.items[token] = memToken{userID: userID, exp: time.Now().Add(ttl)}
 	return nil
 }

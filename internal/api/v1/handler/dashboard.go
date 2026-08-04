@@ -69,7 +69,7 @@ func (h *DashboardHandler) WS(c *gin.Context) {
 	}
 
 	// S5：连接限额（全局 + 每用户）
-	if h.acquireConn(claims.Subject) == false {
+	if !h.acquireConn(claims.Subject) {
 		middleware.WriteError(c, middleware.RateLimited("too many websocket connections"))
 		return
 	}

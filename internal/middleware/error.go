@@ -140,6 +140,7 @@ func WriteOK[T any](c *gin.Context, data T) {
 }
 
 // WriteError 输出统一错误信封。
+// L7：信封 key 与成功响应一致（request_id snake_case，前端错误分支按原始字段读取）。
 func WriteError(c *gin.Context, e *APIError) {
 	fields := map[string]any(nil)
 	if e.Fields != nil {
@@ -149,11 +150,11 @@ func WriteError(c *gin.Context, e *APIError) {
 		}
 	}
 	c.AbortWithStatusJSON(e.HTTP, gin.H{
-		"code":      e.Code,
-		"message":   e.Message,
-		"data":      fields,
-		"timestamp": time.Now().UnixMilli(),
-		"requestId": GetRequestID(c),
+		"code":       e.Code,
+		"message":    e.Message,
+		"data":       fields,
+		"timestamp":  time.Now().UnixMilli(),
+		"request_id": GetRequestID(c),
 	})
 }
 

@@ -61,7 +61,12 @@ func (svc *ModelService) Create(in *dto.CreateModelRequest) (*model.AIModel, *mi
 		Config:       string(in.Config),
 	}
 	svc.store.CreateModel(m)
-	return m, nil
+	// L1：返回深拷贝（GetModel 返回副本），避免 handler 锁外序列化与锁内改写竞争。
+	created, ok := svc.store.GetModel(m.ID)
+	if !ok {
+		return nil, middleware.Internal("model created but not found")
+	}
+	return created, nil
 }
 
 // Update 更新模型。检测到新 Key 时用当前公钥重新加密并记录 rotated_at（文档 6.2 Key 轮换）。
