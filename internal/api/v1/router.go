@@ -42,7 +42,7 @@ func NewRouter(d Deps) *gin.Engine {
 	if err := r.SetTrustedProxies(nil); err != nil {
 		panic(err)
 	}
-	r.Use(middleware.RequestID(), middleware.Recovery(), middleware.CORS(d.ExtraOrigins...))
+	r.Use(middleware.RequestID(), middleware.AccessLog(), middleware.Recovery(), middleware.CORS(d.ExtraOrigins...))
 
 	// 404/405 统一信封
 	r.NoRoute(func(c *gin.Context) {

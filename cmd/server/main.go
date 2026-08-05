@@ -7,8 +7,8 @@
 // @BasePath /api/v1
 //
 // 配置加载顺序（后加载者不覆盖已存在的值）：
-//   1. 进程环境变量（shell export / systemd Environment）
-//   2. .env 文件（ENV_FILE 指定路径，默认工作目录下 .env；不存在则忽略）
+//  1. 进程环境变量（shell export / systemd Environment）
+//  2. .env 文件（ENV_FILE 指定路径，默认工作目录下 .env；不存在则忽略）
 //
 // 环境变量清单见仓库根目录 .env.example。
 //
@@ -22,6 +22,7 @@
 //	CORS_ORIGINS       追加 CORS 白名单（逗号分隔）
 //	TLS_CERT_FILE      TLS 证书 PEM 路径；与 TLS_KEY_FILE 同时设置时启用 HTTPS + HTTP/2
 //	TLS_KEY_FILE       TLS 私钥 PEM 路径
+//	LOG_DIR            日志目录（默认 "logs"；设空串禁用文件日志，仅终端输出）
 //	ENV_FILE           .env 文件路径（默认 .env）
 package main
 
@@ -45,6 +46,7 @@ import (
 	"fxcore/internal/pkg/cache"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
+	"fxcore/internal/pkg/logger"
 	"fxcore/internal/store"
 )
 
@@ -55,6 +57,13 @@ func main() {
 		if !errors.Is(err, os.ErrNotExist) {
 			log.Printf("[main] ⚠️  load env file %s: %v (ignored, using process env)", envFile, err)
 		}
+	}
+
+	// 日志系统初始化（应用日志 + API 访问日志双写：文件轮转 + 终端）。
+	// 必须在任何 log.Printf 之前：Init 重定向标准库 log 输出。
+	// LOG_DIR 默认 "logs"；显式设空串（LOG_DIR=）才禁用文件日志。
+	if _, err := logger.Init(logger.Config{Dir: getenv("LOG_DIR", "logs")}); err != nil {
+		log.Fatalf("[main] init logger: %v", err)
 	}
 
 	port := getenv("PORT", "8080")
@@ -115,8 +124,8 @@ func main() {
 		Handler:           r,
 		ReadHeaderTimeout: 10 * time.Second,
 		// 慢请求防护：读超时覆盖请求头+body；WS 升级后连接被 hijack，不受 ReadTimeout 影响
-		ReadTimeout:  30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:    30 * time.Second,
+		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 64 << 10,
 	}
 
