@@ -31,6 +31,7 @@ type Exchange struct {
 	AccountName               string     `gorm:"size:64" json:"account_name"`
 	Enabled                   bool       `json:"enabled"`
 	Testnet                   bool       `json:"testnet,omitempty"`
+	APIKeyPrefix              string     `gorm:"size:32" json:"api_key_prefix,omitempty"` // 脱敏显示，如 ab****cd（明文时计算）
 	APIKeyEnc                 string     `gorm:"size:4096" json:"-"`
 	SecretKeyEnc              string     `gorm:"size:4096" json:"-"`
 	PassphraseEnc             string     `gorm:"size:4096" json:"-"`
