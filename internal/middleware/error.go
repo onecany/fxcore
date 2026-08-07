@@ -27,7 +27,18 @@ const (
 	CodeTraderRunning       = 1204 // 交易员运行中 -> 禁用 Start
 	CodeAIFailed            = 1301 // AI 失败 -> 显示重试按钮
 	CodeAITimeout           = 1302 // AI 超时 -> 自动重试 3 次
+	// ---- §12 交易域错误码扩展 ----
+	CodeExchangeFailed      = 1401 // 交易所连接失败（含凭据无效/网络）-> 显示重试 + 检查密钥
+	CodeRiskRejected        = 1402 // 风控拒绝（仓位超限/保证金不足/杠杆超限）-> 展示风控原因
+	CodePositionExists      = 1403 // 同方向持仓已存在（不支持加仓）-> 提示当前持仓
+	CodeClosePositionFailed = 1404 // 平仓失败/无持仓 -> 刷新持仓
+	CodeDecisionParseFailed = 1405 // AI 决策解析失败（回退 safe wait）-> 显示降级状态
+	CodeGridPaused          = 1410 // 网格策略暂停（趋势行情）-> 显示 regime 状态
+	CodeBacktestLock        = 1411 // 回测运行锁冲突（run 进行中）-> 等待或停止
+	CodeBacktestNotFound    = 1412 // 回测 run 不存在/无权限 -> 404 占位
+	CodeDebateNotExecutable = 1420 // 辩论不可执行（非 completed 或无 open 决策）-> 禁用执行按钮
 	CodeInternal            = 1500 // 服务器内部错误（错误码矩阵扩展：原矩阵无内部错误码，禁止复用 1001/1301 表达服务端故障）
+	CodeDBError             = 1501 // 数据库错误（脱敏后）-> 通用错误
 )
 
 // APIError 带业务码的错误。
@@ -93,6 +104,56 @@ func AIFailed(msg string) *APIError {
 // AITimeout AI 调用超时（1302）。
 func AITimeout(msg string) *APIError {
 	return &APIError{Code: CodeAITimeout, HTTP: http.StatusGatewayTimeout, Message: msg}
+}
+
+// ExchangeFailed 交易所连接失败（1401）。
+func ExchangeFailed(msg string) *APIError {
+	return &APIError{Code: CodeExchangeFailed, HTTP: http.StatusBadRequest, Message: msg}
+}
+
+// RiskRejected 风控拒绝（1402）。
+func RiskRejected(msg string) *APIError {
+	return &APIError{Code: CodeRiskRejected, HTTP: http.StatusBadRequest, Message: msg}
+}
+
+// PositionExists 同方向持仓已存在（1403，不支持加仓）。
+func PositionExists(msg string) *APIError {
+	return &APIError{Code: CodePositionExists, HTTP: http.StatusConflict, Message: msg}
+}
+
+// ClosePositionFailed 平仓失败/无持仓（1404）。
+func ClosePositionFailed(msg string) *APIError {
+	return &APIError{Code: CodeClosePositionFailed, HTTP: http.StatusBadRequest, Message: msg}
+}
+
+// DecisionParseFailed AI 决策解析失败（1405，回退 safe wait）。
+func DecisionParseFailed(msg string) *APIError {
+	return &APIError{Code: CodeDecisionParseFailed, HTTP: http.StatusServiceUnavailable, Message: msg}
+}
+
+// GridPaused 网格策略暂停（1410，趋势行情）。
+func GridPaused(msg string) *APIError {
+	return &APIError{Code: CodeGridPaused, HTTP: http.StatusConflict, Message: msg}
+}
+
+// BacktestLock 回测运行锁冲突（1411）。
+func BacktestLock(msg string) *APIError {
+	return &APIError{Code: CodeBacktestLock, HTTP: http.StatusBadRequest, Message: msg}
+}
+
+// BacktestNotFound 回测 run 不存在（1412）。
+func BacktestNotFound(msg string) *APIError {
+	return &APIError{Code: CodeBacktestNotFound, HTTP: http.StatusNotFound, Message: msg}
+}
+
+// DebateNotExecutable 辩论不可执行（1420）。
+func DebateNotExecutable(msg string) *APIError {
+	return &APIError{Code: CodeDebateNotExecutable, HTTP: http.StatusConflict, Message: msg}
+}
+
+// DBError 数据库错误（1501，脱敏后）。
+func DBError(msg string) *APIError {
+	return &APIError{Code: CodeDBError, HTTP: http.StatusInternalServerError, Message: msg}
 }
 
 // Internal 服务器内部错误（1500，错误码矩阵扩展）。
