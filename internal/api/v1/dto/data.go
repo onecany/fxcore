@@ -113,6 +113,11 @@ type EquityPointDTO struct {
 	DrawdownPct float64 `json:"drawdown_pct,omitempty"`
 }
 
+// EquityBatchRequest 批量权益查询（POST /equity-history-batch）。
+type EquityBatchRequest struct {
+	TraderIDs []string `json:"trader_ids" binding:"required,min=1,max=50"`
+}
+
 // TraderConfigDTO 脱敏公开配置（GET /traders/{id}/public-config）。
 type TraderConfigDTO struct {
 	Name           string `json:"name"`
