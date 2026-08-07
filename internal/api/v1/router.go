@@ -122,6 +122,61 @@ func NewRouter(d Deps) *gin.Engine {
 		// --- 持仓 ---
 		read.GET("/positions", traderH.ListPositions)
 		write.DELETE("/positions/:id", traderH.ClosePosition)
+
+		// --- 交易所（§11 exchanges 路由） ---
+		exchangeH := handler.NewExchangeHandler(service.NewExchangeService(d.Store, d.KeyManager))
+		read.GET("/exchanges", exchangeH.List)
+		write.POST("/exchanges", exchangeH.Create)
+		write.PUT("/exchanges/:id", exchangeH.Update)
+		write.DELETE("/exchanges/:id", exchangeH.Delete)
+
+		// --- 策略（§11 strategies 路由；静态路由先于 :id 注册，gin 静态优先） ---
+		strategyH := handler.NewStrategyHandler(service.NewStrategyService(d.Store))
+		read.GET("/strategies", strategyH.List)
+		read.GET("/strategies/active", strategyH.GetActive)
+		read.GET("/strategies/default-config", strategyH.GetDefaultConfig)
+		read.GET("/strategies/public", strategyH.Public)
+		read.GET("/strategies/:id", strategyH.Get)
+		write.POST("/strategies", strategyH.Create)
+		write.POST("/strategies/preview-prompt", strategyH.PreviewPrompt)
+		write.POST("/strategies/test-run", strategyH.TestRun)
+		write.PUT("/strategies/:id", strategyH.Update)
+		write.DELETE("/strategies/:id", strategyH.Delete)
+		write.POST("/strategies/:id/activate", strategyH.Activate)
+		write.POST("/strategies/:id/duplicate", strategyH.Duplicate)
+
+		// --- 加密工具（§11 crypto 路由） ---
+		cryptoH := handler.NewCryptoHandler(d.KeyManager)
+		read.GET("/crypto/config", cryptoH.GetConfig)
+		read.GET("/crypto/public-key", cryptoH.GetPublicKey)
+		write.POST("/crypto/decrypt", cryptoH.Decrypt)
+
+		// --- Telegram（§11 telegram 路由；绑定流程引擎层阶段 3） ---
+		telegramH := handler.NewTelegramHandler(service.NewTelegramService(d.Store, d.KeyManager))
+		read.GET("/telegram", telegramH.Get)
+		write.POST("/telegram", telegramH.Save)
+		write.POST("/telegram/model", telegramH.SetModel)
+		write.DELETE("/telegram/binding", telegramH.DeleteBinding)
+
+		// --- 数据/市场（§11 data + market 路由） ---
+		dataH := handler.NewDataHandler(service.NewDataService(d.Store))
+		read.GET("/status", dataH.Status)
+		read.GET("/account", dataH.Account)
+		read.GET("/decisions", dataH.Decisions)
+		read.GET("/decisions/latest", dataH.LatestDecision)
+		read.GET("/statistics", dataH.Statistics)
+		read.GET("/trades", dataH.Trades)
+		read.GET("/orders", dataH.Orders)
+		read.GET("/orders/:id/fills", dataH.OrderFills)
+		read.GET("/open-orders", dataH.OpenOrders)
+		read.GET("/klines", dataH.Klines)
+		read.GET("/symbols", dataH.Symbols)
+		read.GET("/positions/history", dataH.PositionHistory)
+		read.GET("/equity-history", dataH.EquityHistory)
+		read.POST("/equity-history-batch", dataH.EquityHistoryBatch) // 批量读，无副作用，免签名
+		read.GET("/competition", dataH.Competition)
+		read.GET("/top-traders", dataH.TopTraders)
+		read.GET("/traders/:id/public-config", dataH.TraderPublicConfig)
 	}
 
 	return r
