@@ -64,15 +64,39 @@ const (
 	StatusError   = "error"
 )
 
-// Position 持仓/平仓记录。
+// Position 持仓/平仓记录（API设计.md §15 positions 表）。
+// 保留早期字段（Size/PnL/OpenedAt/ClosedAt）兼容现有 dashboard/trader_svc 逻辑，
+// 新增 §10/§15 契约字段：quantity/leverage/status/entry_time/exit_time/
+// realized_pnl/fee/close_reason 等。PositionBuilder 是 position 表唯一写者。
 type Position struct {
-	ID         string     `json:"id"`
-	Symbol     string     `json:"symbol"`
-	Side       string     `json:"side"` // long | short
-	Size       float64    `json:"size"`
-	EntryPrice float64    `json:"entry_price"`
-	PnL        float64    `json:"pnl"`
-	TraderID   string     `json:"trader_id"`
-	OpenedAt   time.Time  `json:"opened_at"`
-	ClosedAt   *time.Time `json:"closed_at,omitempty"`
+	ID            string     `json:"id"`
+	TraderID      string     `json:"trader_id"`
+	ExchangeID    string     `json:"exchange_id,omitempty"`
+	Symbol        string     `json:"symbol"`
+	Side          string     `json:"side"` // long | short
+	Size          float64    `json:"size"` // 兼容旧字段（=quantity）
+	EntryPrice    float64    `json:"entry_price"`
+	PnL           float64    `json:"pnl"` // 兼容旧字段（平仓后=realized_pnl）
+	OpenedAt      time.Time  `json:"opened_at"`
+	ClosedAt      *time.Time `json:"closed_at,omitempty"`
+	// ---- §10/§15 扩展字段 ----
+	EntryQuantity float64    `json:"entry_quantity,omitempty"` // 开仓数量
+	Quantity      float64    `json:"quantity,omitempty"`       // 当前数量（减仓后变小）
+	MarkPrice     float64    `json:"mark_price,omitempty"`
+	UnrealizedPnL float64    `json:"unrealized_pnl,omitempty"`
+	Leverage      int        `json:"leverage,omitempty"`
+	Status        string     `json:"status,omitempty"` // OPEN | CLOSED
+	EntryTime     int64      `json:"entry_time,omitempty"` // unix 秒（§10 契约）
+	ExitTime      int64      `json:"exit_time,omitempty"`
+	ExitPrice     float64    `json:"exit_price,omitempty"`
+	RealizedPnL   float64    `json:"realized_pnl,omitempty"`
+	Fee           float64    `json:"fee,omitempty"`
+	CloseReason   string     `json:"close_reason,omitempty"` // tp | sl | manual | risk | liquidated
+	Source        string     `json:"source,omitempty"`       // engine | manual
 }
+
+// Position 状态常量（OPEN/CLOSED，区别于 Trader 状态机）。
+const (
+	PositionOpen   = "OPEN"
+	PositionClosed = "CLOSED"
+)
