@@ -31,6 +31,15 @@ type Store struct {
 	traders    map[string]*model.Trader
 	positions  []*model.Position // 追加序，最新在末尾
 	posSeq     int64
+	// ---- §10-§15 扩展实体 ----
+	exchanges  map[string]*model.Exchange // by id
+	strategies map[string]*model.Strategy // by id
+	telegram   *model.TelegramConfig      // 单用户单例
+	orders     []*model.Order             // 追加序，最新在末尾
+	fills      []*model.Fill              // 追加序，最新在末尾
+	decisions  []*model.DecisionRecord    // 追加序，最新在末尾
+	equities   []*model.EquitySnapshot    // 追加序，最新在末尾
+	seq        int64                      // 追加序实体统一自增 ID
 }
 
 // Config 初始化配置。
@@ -48,6 +57,12 @@ func New(cfg Config) (*Store, error) {
 		models:     make(map[string]*model.AIModel),
 		traders:    make(map[string]*model.Trader),
 		positions:  make([]*model.Position, 0, 16),
+		exchanges:  make(map[string]*model.Exchange),
+		strategies: make(map[string]*model.Strategy),
+		orders:     make([]*model.Order, 0, 16),
+		fills:      make([]*model.Fill, 0, 16),
+		decisions:  make([]*model.DecisionRecord, 0, 16),
+		equities:   make([]*model.EquitySnapshot, 0, 16),
 	}
 	if err := s.seedAdmin(cfg); err != nil {
 		return nil, err
@@ -278,13 +293,21 @@ func cloneTrader(t *model.Trader) *model.Trader {
 
 // ========== 持仓 ==========
 
-// AddPosition 开仓。
+// AddPosition 开仓（PositionBuilder 唯一写者；OPEN 状态 + 新契约字段齐填）。
 func (s *Store) AddPosition(p *model.Position) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.posSeq++
 	p.ID = newID()
 	p.OpenedAt = time.Now().UTC()
+	p.Status = model.PositionOpen
+	p.EntryTime = p.OpenedAt.Unix()
+	if p.Quantity == 0 {
+		p.Quantity = p.Size
+	}
+	if p.EntryQuantity == 0 {
+		p.EntryQuantity = p.Size
+	}
 	s.positions = append(s.positions, p)
 }
 
@@ -313,7 +336,7 @@ func (s *Store) ListPositions() []*model.Position {
 	return out
 }
 
-// ClosePosition 平仓：写入 PnL 与 ClosedAt（锁内原子），返回更新后的副本。
+// ClosePosition 平仓：写入 PnL、RealizedPnL、Status、ExitTime/ExitPrice 与 ClosedAt（锁内原子），返回更新后的副本。
 func (s *Store) ClosePosition(id string, pnl float64) (*model.Position, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -325,12 +348,83 @@ func (s *Store) ClosePosition(id string, pnl float64) (*model.Position, bool) {
 			}
 			now := time.Now().UTC()
 			p.PnL = pnl
+			p.RealizedPnL = pnl
+			p.Status = model.PositionClosed
+			p.ExitTime = now.Unix()
+			p.ExitPrice = p.MarkPrice
 			p.ClosedAt = &now
 			cp := *p
 			return &cp, true
 		}
 	}
 	return nil, false
+}
+
+// ListPositionsByTrader 按 trader 列持仓（返回副本切片，最新在前）。
+// 仅过滤 OPEN 持仓（平仓记录走 ListPositionHistory）。
+func (s *Store) ListPositionsByTrader(traderID string) []*model.Position {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*model.Position, 0, 8)
+	for i := len(s.positions) - 1; i >= 0; i-- {
+		p := s.positions[i]
+		if p.TraderID != traderID || p.ClosedAt != nil {
+			continue
+		}
+		cp := *p
+		out = append(out, &cp)
+	}
+	return out
+}
+
+// ListPositionHistory 平仓历史（返回副本切片，最新在前，分页）。
+// symbol 可选过滤；traderID 为空则返回全部。
+func (s *Store) ListPositionHistory(traderID, symbol string, offset, limit int) []*model.Position {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*model.Position, 0, 16)
+	for i := len(s.positions) - 1; i >= 0; i-- {
+		p := s.positions[i]
+		if p.ClosedAt == nil {
+			continue
+		}
+		if traderID != "" && p.TraderID != traderID {
+			continue
+		}
+		if symbol != "" && p.Symbol != symbol {
+			continue
+		}
+		cp := *p
+		out = append(out, &cp)
+	}
+	if offset > len(out) {
+		offset = len(out)
+	}
+	end := offset + limit
+	if end > len(out) {
+		end = len(out)
+	}
+	return out[offset:end]
+}
+
+// CountPositionHistory 平仓历史条数。
+func (s *Store) CountPositionHistory(traderID, symbol string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	n := 0
+	for _, p := range s.positions {
+		if p.ClosedAt == nil {
+			continue
+		}
+		if traderID != "" && p.TraderID != traderID {
+			continue
+		}
+		if symbol != "" && p.Symbol != symbol {
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // NewRefreshToken 生成 refresh token（32 字节 hex）。
