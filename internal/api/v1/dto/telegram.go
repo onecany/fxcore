@@ -6,7 +6,7 @@ package dto
 type SaveTelegramRequest struct {
 	BotToken string `json:"bot_token" binding:"required,max=512"`
 	ModelID  string `json:"model_id" binding:"required,max=36"`
-	ChatID   string `json:"chat_id,max=64"`
+	ChatID   string `json:"chat_id,omitempty"`
 }
 
 // SetTelegramModelRequest 仅换模型（POST /telegram/model）。

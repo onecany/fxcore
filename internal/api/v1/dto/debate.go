@@ -37,7 +37,7 @@ type CreateDebateRequest struct {
 	Symbol      string   `json:"symbol" binding:"required,max=32"`
 	Participants []string `json:"participants" binding:"required,min=2,max=5"` // AI model IDs
 	MaxRounds   int      `json:"max_rounds" binding:"min=1,max=5"`
-	IntervalMinutes int   `json:"interval_minutes" binding:"min=1"`
+	IntervalMinutes int   `json:"interval_minutes" binding:"omitempty,min=1"` // 缺省 5（引擎兜底）
 	PromptVariant string `json:"prompt_variant,omitempty"`
 	AutoExecute  bool     `json:"auto_execute,omitempty"`
 	TraderID     string   `json:"trader_id,omitempty"`

@@ -114,15 +114,15 @@ type StrategyConfig struct {
 // CreateStrategyRequest 创建策略（config 缺省用系统默认，§11）。
 type CreateStrategyRequest struct {
 	Name        string          `json:"name" binding:"required,max=64"`
-	Description string          `json:"description,max=512"`
-	Lang        string          `json:"lang,max=8"` // zh | en
+	Description string          `json:"description,omitempty"`
+	Lang        string          `json:"lang,omitempty"` // zh | en
 	Config      json.RawMessage `json:"config"`
 }
 
 // UpdateStrategyRequest 更新策略（读-改-写工作流：PUT 后 GET 验证，§11）。
 type UpdateStrategyRequest struct {
-	Name        *string         `json:"name,max=64"`
-	Description *string         `json:"description,max=512"`
+	Name        *string         `json:"name,omitempty"`
+	Description *string         `json:"description,omitempty"`
 	Config      json.RawMessage `json:"config"`
 }
 

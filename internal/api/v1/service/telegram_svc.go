@@ -1,9 +1,6 @@
 package service
 
 import (
-	"strings"
-	"time"
-
 	"fxcore/internal/api/v1/dto"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
@@ -87,15 +84,4 @@ func BotTokenPrefix(token string) string {
 		return "****"
 	}
 	return token[:5] + "****"
-}
-
-// ensureNonEmpty 防空白字符串入库。
-func ensureNonEmpty(s string) string { return strings.TrimSpace(s) }
-
-// parseBoundTime 绑定时间辅助（handler 层用）。
-func parseBoundTime(t *time.Time) int64 {
-	if t == nil {
-		return 0
-	}
-	return t.Unix()
 }

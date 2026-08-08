@@ -52,7 +52,7 @@ type StartBacktestRequest struct {
 // BacktestControlRequest 暂停/恢复/停止/标签/删除（POST /backtest/{action}）。
 type BacktestControlRequest struct {
 	RunID string `json:"run_id" binding:"required,max=128"`
-	Label string `json:"label,max=128"` // 仅 label 用
+	Label string `json:"label,omitempty"` // 仅 label 用
 }
 
 // RunMetadata 回测运行元信息（§11 响应）。
