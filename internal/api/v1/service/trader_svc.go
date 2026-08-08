@@ -36,9 +36,10 @@ var transitions = map[string]map[string]bool{
 	model.StatusError:   {model.StatusStopped: true},
 }
 
-// validExchanges 支持的交易所。
+// validExchanges 支持的交易所（10 家，§14.2；未接入适配器的类型运行时返回 ErrNotImplemented）。
 var validExchanges = map[string]bool{
 	"binance": true, "hyperliquid": true, "aster": true, "bybit": true, "okx": true,
+	"bitget": true, "gate": true, "kucoin": true, "indodax": true, "lighter": true,
 }
 
 // Create 创建交易员（状态 idle）。

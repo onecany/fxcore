@@ -37,9 +37,9 @@ var cexTypes = map[string]bool{
 	model.ExchangeIndodax: true,
 }
 
-// passphraseTypes 额外需要 passphrase 的交易所（okx/gate/kucoin）。
+// passphraseTypes 额外需要 passphrase 的交易所（okx/kucoin；gate 不需要）。
 var passphraseTypes = map[string]bool{
-	model.ExchangeOKX: true, model.ExchangeGate: true, model.ExchangeKuCoin: true,
+	model.ExchangeOKX: true, model.ExchangeKuCoin: true,
 }
 
 // Create 创建交易所：先按类型校验必填字段，再 RSA 加密凭据落库。
