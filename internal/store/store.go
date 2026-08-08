@@ -39,7 +39,17 @@ type Store struct {
 	fills      []*model.Fill              // 追加序，最新在末尾
 	decisions  []*model.DecisionRecord    // 追加序，最新在末尾
 	equities   []*model.EquitySnapshot    // 追加序，最新在末尾
-	seq        int64                      // 追加序实体统一自增 ID
+	// ---- 回测 ----
+	backtestRuns       map[string]*model.BacktestRun
+	backtestEquities   []*model.BacktestEquity
+	backtestTrades     []*model.BacktestTrade
+	backtestDecisions  []*model.BacktestDecision
+	backtestCheckpoints map[string]*model.BacktestCheckpoint
+	// ---- 辩论 ----
+	debateSessions    map[string]*model.DebateSession
+	debateParticipants []*model.DebateParticipant
+	debateMessages    []*model.DebateMessage
+	debateVotes       []*model.DebateVote
 }
 
 // Config 初始化配置。
@@ -63,6 +73,15 @@ func New(cfg Config) (*Store, error) {
 		fills:      make([]*model.Fill, 0, 16),
 		decisions:  make([]*model.DecisionRecord, 0, 16),
 		equities:   make([]*model.EquitySnapshot, 0, 16),
+		backtestRuns:        make(map[string]*model.BacktestRun),
+		backtestEquities:    make([]*model.BacktestEquity, 0, 16),
+		backtestTrades:      make([]*model.BacktestTrade, 0, 16),
+		backtestDecisions:   make([]*model.BacktestDecision, 0, 16),
+		backtestCheckpoints: make(map[string]*model.BacktestCheckpoint),
+		debateSessions:      make(map[string]*model.DebateSession),
+		debateParticipants:  make([]*model.DebateParticipant, 0, 8),
+		debateMessages:      make([]*model.DebateMessage, 0, 32),
+		debateVotes:         make([]*model.DebateVote, 0, 8),
 	}
 	if err := s.seedAdmin(cfg); err != nil {
 		return nil, err
