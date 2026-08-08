@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -454,10 +455,9 @@ func (e *Engine) candidateSymbols(t *model.Trader) []string {
 	return []string{"BTC-USDT"}
 }
 
-// noteTraderError 记录交易员级错误（状态机 error 标记留 handler 决策）。
+// noteTraderError 记录交易员级错误（logger 重定向到文件+终端）。
 func (e *Engine) noteTraderError(traderID, msg string) {
-	_ = traderID
-	// 记录到日志（当前无 trader 级 error 通道，保持状态机由 handler 驱动）
+	log.Printf("[trader:%s] %s", traderID, msg)
 }
 
 // resetDailyPnL 24h 窗口重置每日盈亏。
