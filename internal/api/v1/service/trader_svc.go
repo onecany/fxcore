@@ -8,6 +8,7 @@ import (
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
 	"fxcore/internal/store"
+	"fxcore/internal/trader/engine"
 )
 
 // TraderService 交易员生命周期状态机（文档 §8 防错清单）：
@@ -15,13 +16,15 @@ import (
 //   · 非法跳转 -> 1004
 //   · running 时重复 start -> 1204（幂等）
 //   · stopped→running 允许重启（对文档线性序列的合理扩展，见 data/API设计.md 复盘）
+// 引擎挂载：eng 非空时 Start/Stop 同步驱动交易引擎 goroutine。
 type TraderService struct {
-	store *store.Store
+	store  *store.Store
+	engine *engine.Engine
 }
 
-// NewTraderService 构造交易员服务。
-func NewTraderService(s *store.Store) *TraderService {
-	return &TraderService{store: s}
+// NewTraderService 构造交易员服务（eng 可空：仅状态机，不跑交易循环）。
+func NewTraderService(s *store.Store, eng *engine.Engine) *TraderService {
+	return &TraderService{store: s, engine: eng}
 }
 
 // transitions 状态迁移表。
@@ -150,11 +153,24 @@ func (svc *TraderService) List() []*model.Trader {
 }
 
 // Start 启动（幂等：running 时 1204；非法迁移 1004）。
+// 状态迁移成功后挂载交易引擎；引擎启动失败回滚状态到 idle。
 func (svc *TraderService) Start(id string) *middleware.APIError {
-	return svc.transition(id, model.StatusRunning)
+	if err := svc.transition(id, model.StatusRunning); err != nil {
+		return err
+	}
+	if svc.engine != nil {
+		if engErr := svc.engine.Start(id); engErr != nil {
+			svc.store.WithTrader(id, func(t *model.Trader) error {
+				t.Status = model.StatusIdle
+				return nil
+			})
+			return middleware.Internal("engine start failed: " + engErr.Error())
+		}
+	}
+	return nil
 }
 
-// Pause 暂停（仅 running→paused）。
+// Pause 暂停（仅 running→paused；引擎循环读 store 状态自动等待）。
 func (svc *TraderService) Pause(id string) *middleware.APIError {
 	return svc.transition(id, model.StatusPaused)
 }
@@ -164,8 +180,11 @@ func (svc *TraderService) Resume(id string) *middleware.APIError {
 	return svc.transition(id, model.StatusRunning)
 }
 
-// Stop 停止（running|paused→stopped）。
+// Stop 停止（running|paused→stopped）。先停引擎（幂等）再迁移状态。
 func (svc *TraderService) Stop(id string) *middleware.APIError {
+	if svc.engine != nil {
+		svc.engine.Stop(id)
+	}
 	return svc.transition(id, model.StatusStopped)
 }
 

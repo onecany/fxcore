@@ -53,6 +53,7 @@ import (
 	"fxcore/internal/pkg/logger"
 	"fxcore/internal/provider"
 	"fxcore/internal/store"
+	"fxcore/internal/trader/engine"
 )
 
 func main() {
@@ -131,6 +132,10 @@ func main() {
 	// 辩论引擎
 	debateEngine := debate.NewEngine(st, models, ai)
 
+	// 交易引擎（§14.1：每交易员独立 goroutine + OrderSync）
+	credsResolver := service.NewCredentialsResolver(st, km)
+	traderEngine := engine.NewEngine(st, credsResolver, models, ai, klinesChain)
+
 	// 服务装配
 	r := v1.NewRouter(v1.Deps{
 		Store:        st,
@@ -144,6 +149,7 @@ func main() {
 		Klines:       klinesChain,
 		Backtest:     btEngine,
 		Debate:       debateEngine,
+		Trader:       traderEngine,
 		AccessTTL:    15 * time.Minute,
 		ExtraOrigins: splitCSV(os.Getenv("CORS_ORIGINS")),
 	})

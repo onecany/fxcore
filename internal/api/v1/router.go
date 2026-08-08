@@ -22,6 +22,7 @@ import (
 	"fxcore/internal/pkg/jwt"
 	"fxcore/internal/provider"
 	"fxcore/internal/store"
+	"fxcore/internal/trader/engine"
 )
 
 // Deps 路由依赖注入。
@@ -37,6 +38,7 @@ type Deps struct {
 	Klines       provider.KlineProvider   // 数据源链（hyperliquid→okx→coinank）
 	Backtest     *backtest.Engine         // 回测引擎（可空：未注入则 backtest 路由不可用）
 	Debate       *debate.Engine           // 辩论引擎（可空：未注入则 debate 路由不可用）
+	Trader       *engine.Engine           // 交易引擎（可空：未注入则 traders 仅状态机）
 	AccessTTL    time.Duration
 	ExtraOrigins []string // 追加 CORS 白名单
 }
@@ -115,7 +117,7 @@ func NewRouter(d Deps) *gin.Engine {
 		write.POST("/models/:id/test", modelH.Test)
 
 		// --- 交易员 ---
-		traderH := handler.NewTraderHandler(service.NewTraderService(d.Store))
+		traderH := handler.NewTraderHandler(service.NewTraderService(d.Store, d.Trader))
 		read.GET("/traders", traderH.List)
 		read.GET("/traders/:id", traderH.Get)
 		write.POST("/traders", traderH.Create)

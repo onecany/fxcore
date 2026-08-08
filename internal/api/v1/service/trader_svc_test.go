@@ -40,7 +40,7 @@ func seedTrader(t *testing.T, s *store.Store, id string) {
 func TestConcurrentStartOnlyOneSucceeds(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t1")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 
 	const n = 24
 	errs := make([]*middleware.APIError, n)
@@ -82,7 +82,7 @@ func TestConcurrentStartOnlyOneSucceeds(t *testing.T) {
 func TestConcurrentStopStartNoRace(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t2")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 16; i++ {
@@ -108,7 +108,7 @@ func TestConcurrentStopStartNoRace(t *testing.T) {
 func TestTransitionRules(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t3")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 
 	if e := svc.Pause("t3"); e == nil || e.Code != middleware.CodeNotFound {
 		t.Fatalf("idle->paused should be 1004, got %+v", e)
@@ -151,7 +151,7 @@ func TestStoreReturnsCopies(t *testing.T) {
 func TestConcurrentClosePositionsWinRate(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t5")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 	s.AddPosition(&model.Position{Symbol: "BTC-USDT", Side: "long", Size: 1, EntryPrice: 100, TraderID: "t5"})
 	s.AddPosition(&model.Position{Symbol: "BTC-USDT", Side: "short", Size: 1, EntryPrice: 100, TraderID: "t5"})
 	ids := s.ListPositions()
@@ -191,7 +191,7 @@ func TestConcurrentClosePositionsWinRate(t *testing.T) {
 func TestClosePositionRejectsNaN(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t6")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 	s.AddPosition(&model.Position{Symbol: "BTC-USDT", Side: "long", Size: 1, EntryPrice: 100, TraderID: "t6"})
 	p := s.ListPositions()[0]
 
@@ -210,7 +210,7 @@ func TestClosePositionRejectsNaN(t *testing.T) {
 func TestUpdateRejectedWhileRunning(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t7")
-	svc := NewTraderService(s)
+	svc := NewTraderService(s, nil)
 	if e := svc.Start("t7"); e != nil {
 		t.Fatalf("start failed: %+v", e)
 	}
