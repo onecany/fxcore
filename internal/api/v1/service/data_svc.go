@@ -1,25 +1,27 @@
 package service
 
 import (
+	"context"
 	"math"
 
 	"fxcore/internal/api/v1/dto"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
+	"fxcore/internal/provider"
 	"fxcore/internal/store"
 )
 
 // DataService 数据/市场只读端点（API设计.md §11 data + market 路由）。
-// 无引擎依赖的部分从 store 聚合真实数据；依赖交易引擎/provider 的
-// 端点（open-orders/klines/symbols/competition/top-traders）返回空骨架，
-// 引擎层（阶段 3）就位后填充。
+// 无引擎依赖的部分从 store 聚合真实数据；open-orders/competition/top-traders
+// 依赖交易引擎（阶段 3d）返回空骨架，klines 已接数据源链。
 type DataService struct {
-	store *store.Store
+	store  *store.Store
+	klines provider.KlineProvider
 }
 
 // NewDataService 构造数据服务。
-func NewDataService(s *store.Store) *DataService {
-	return &DataService{store: s}
+func NewDataService(s *store.Store, klines provider.KlineProvider) *DataService {
+	return &DataService{store: s, klines: klines}
 }
 
 // Status 运行状态。
@@ -146,10 +148,16 @@ func (svc *DataService) OpenOrders(traderID string) []*model.Order {
 	return []*model.Order{}
 }
 
-// Klines K 线行情。骨架：provider 数据源链（阶段 3）就位后填充。
-func (svc *DataService) Klines(symbol, interval string, limit int) []dto.KlineDTO {
-	_, _, _ = symbol, interval, limit
-	return []dto.KlineDTO{}
+// Klines K 线行情（数据源链：hyperliquid→okx→coinank）。
+func (svc *DataService) Klines(symbol, interval string, limit int) ([]dto.KlineDTO, error) {
+	if svc.klines == nil {
+		return []dto.KlineDTO{}, nil
+	}
+	klines, err := svc.klines.Klines(context.Background(), symbol, interval, limit)
+	if err != nil {
+		return nil, err
+	}
+	return klines, nil
 }
 
 // Symbols 交易对列表。骨架：provider 就位后填充。

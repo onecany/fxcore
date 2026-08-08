@@ -13,10 +13,14 @@ import (
 	"fxcore/internal/api/v1/handler"
 	"fxcore/internal/api/v1/openapi3"
 	"fxcore/internal/api/v1/service"
+	"fxcore/internal/backtest"
+	"fxcore/internal/debate"
+	"fxcore/internal/llm"
 	"fxcore/internal/middleware"
 	"fxcore/internal/pkg/cache"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
+	"fxcore/internal/provider"
 	"fxcore/internal/store"
 )
 
@@ -28,6 +32,11 @@ type Deps struct {
 	Limiter      cache.RateLimiter
 	Nonces       cache.NonceCache
 	KeyManager   *crypto.KeyManager
+	AI           *llm.Client              // 统一 AI 客户端（backtest/debate/引擎共用）
+	Models       llm.ModelProvider        // 模型配置访问（组装层注入 adapter）
+	Klines       provider.KlineProvider   // 数据源链（hyperliquid→okx→coinank）
+	Backtest     *backtest.Engine         // 回测引擎（可空：未注入则 backtest 路由不可用）
+	Debate       *debate.Engine           // 辩论引擎（可空：未注入则 debate 路由不可用）
 	AccessTTL    time.Duration
 	ExtraOrigins []string // 追加 CORS 白名单
 }
@@ -159,7 +168,7 @@ func NewRouter(d Deps) *gin.Engine {
 		write.DELETE("/telegram/binding", telegramH.DeleteBinding)
 
 		// --- 数据/市场（§11 data + market 路由） ---
-		dataH := handler.NewDataHandler(service.NewDataService(d.Store))
+		dataH := handler.NewDataHandler(service.NewDataService(d.Store, d.Klines))
 		read.GET("/status", dataH.Status)
 		read.GET("/account", dataH.Account)
 		read.GET("/decisions", dataH.Decisions)
@@ -177,6 +186,37 @@ func NewRouter(d Deps) *gin.Engine {
 		read.GET("/competition", dataH.Competition)
 		read.GET("/top-traders", dataH.TopTraders)
 		read.GET("/traders/:id/public-config", dataH.TraderPublicConfig)
+
+		// --- 回测（§11 backtest 路由；引擎未注入时不注册） ---
+		if d.Backtest != nil {
+			backtestH := handler.NewBacktestHandler(d.Backtest)
+			write.POST("/backtest/start", backtestH.Start)
+			write.POST("/backtest/:action", backtestH.Control)
+			read.GET("/backtest/status", backtestH.Status)
+			read.GET("/backtest/runs", backtestH.Runs)
+			read.GET("/backtest/equity", backtestH.Equity)
+			read.GET("/backtest/trades", backtestH.Trades)
+			read.GET("/backtest/metrics", backtestH.Metrics)
+			read.GET("/backtest/trace", backtestH.Trace)
+			read.GET("/backtest/decisions", backtestH.Decisions)
+			read.GET("/backtest/export", backtestH.Export)
+			read.GET("/backtest/klines", backtestH.Klines)
+		}
+
+		// --- 辩论（§11 debate 路由；引擎未注入时不注册） ---
+		if d.Debate != nil {
+			debateH := handler.NewDebateHandler(d.Debate)
+			read.GET("/debates", debateH.List)
+			read.GET("/debates/personalities", debateH.Personalities)
+			write.POST("/debates", debateH.Create)
+			read.GET("/debates/:id", debateH.Get)
+			write.POST("/debates/:id/:action", debateH.Control)
+			write.POST("/debates/:id/execute", debateH.Execute)
+			write.DELETE("/debates/:id", debateH.Delete)
+			read.GET("/debates/:id/messages", debateH.Messages)
+			read.GET("/debates/:id/votes", debateH.Votes)
+			read.GET("/debates/:id/stream", debateH.Stream)
+		}
 	}
 
 	return r

@@ -43,10 +43,15 @@ import (
 	"golang.org/x/net/http2"
 
 	v1 "fxcore/internal/api/v1"
+	"fxcore/internal/api/v1/service"
+	"fxcore/internal/backtest"
+	"fxcore/internal/debate"
+	"fxcore/internal/llm"
 	"fxcore/internal/pkg/cache"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
 	"fxcore/internal/pkg/logger"
+	"fxcore/internal/provider"
 	"fxcore/internal/store"
 )
 
@@ -107,6 +112,25 @@ func main() {
 	// Redis（可选，降级内存）
 	redisURL := os.Getenv("REDIS_URL")
 
+	// 统一 AI 客户端（backtest/debate/交易引擎共用；决策调用可能 60s+）
+	ai := llm.New(90 * time.Second)
+
+	// 数据源链：hyperliquid → okx → coinank 兜底（§14.3）
+	klinesChain := provider.NewChain(
+		provider.NewHyperliquidProvider(os.Getenv("HYPERLIQUID_BASE_URL")),
+		provider.NewOKXProvider(os.Getenv("OKX_BASE_URL")),
+		provider.NewCoinAnkProvider(),
+	)
+
+	// 模型配置 adapter（store 解密注入 llm）
+	models := service.NewLLMModelProvider(st, km)
+
+	// 回测引擎
+	btEngine := backtest.NewEngine(st, klinesChain, models, ai)
+
+	// 辩论引擎
+	debateEngine := debate.NewEngine(st, models, ai)
+
 	// 服务装配
 	r := v1.NewRouter(v1.Deps{
 		Store:        st,
@@ -115,6 +139,11 @@ func main() {
 		Limiter:      cache.NewRateLimiter(redisURL),
 		Nonces:       cache.NewNonceCache(redisURL),
 		KeyManager:   km,
+		AI:           ai,
+		Models:       models,
+		Klines:       klinesChain,
+		Backtest:     btEngine,
+		Debate:       debateEngine,
 		AccessTTL:    15 * time.Minute,
 		ExtraOrigins: splitCSV(os.Getenv("CORS_ORIGINS")),
 	})

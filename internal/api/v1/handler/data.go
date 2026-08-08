@@ -224,7 +224,12 @@ func (h *DataHandler) Klines(c *gin.Context) {
 			limit = n
 		}
 	}
-	middleware.WriteOK(c, h.svc.Klines(symbol, interval, limit))
+	klines, err := h.svc.Klines(symbol, interval, limit)
+	if err != nil {
+		middleware.WriteError(c, middleware.NewAPIError(middleware.CodeExchangeFailed, 400, "fetch klines failed: "+err.Error()))
+		return
+	}
+	middleware.WriteOK(c, klines)
 }
 
 // Symbols GET /symbols
