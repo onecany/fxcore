@@ -11,20 +11,40 @@ import (
 
 // AddDecision 落决策记录（每交易员每周期一条，追加序）。
 func (s *Store) AddDecision(d *model.DecisionRecord) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if d.ID == "" {
 		d.ID = newID()
 	}
 	if d.Timestamp.IsZero() {
 		d.Timestamp = time.Now().UTC()
 	}
+	if s.db != nil {
+		s.db.Create(d)
+		s.mu.Lock()
+		s.decisions = append(s.decisions, d)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.decisions = append(s.decisions, d)
 }
 
 // ListDecisionsByTrader 按 trader 列决策（返回深拷贝副本切片，最新在前）。
 // offset/limit 分页；traderID 为空则返回全部。
 func (s *Store) ListDecisionsByTrader(traderID string, offset, limit int) []*model.DecisionRecord {
+	if s.db != nil {
+		q := s.db.Model(&model.DecisionRecord{})
+		if traderID != "" {
+			q = q.Where("trader_id = ?", traderID)
+		}
+		var rows []model.DecisionRecord
+		q.Order("timestamp DESC").Offset(offset).Limit(limit).Find(&rows)
+		out := make([]*model.DecisionRecord, 0, len(rows))
+		for i := range rows {
+			out = append(out, cloneDecision(&rows[i]))
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.DecisionRecord, 0, 16)
@@ -47,6 +67,15 @@ func (s *Store) ListDecisionsByTrader(traderID string, offset, limit int) []*mod
 
 // CountDecisions 按 trader 统计决策条数。
 func (s *Store) CountDecisions(traderID string) int {
+	if s.db != nil {
+		q := s.db.Model(&model.DecisionRecord{})
+		if traderID != "" {
+			q = q.Where("trader_id = ?", traderID)
+		}
+		var n int64
+		q.Count(&n)
+		return int(n)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	n := 0
@@ -60,6 +89,13 @@ func (s *Store) CountDecisions(traderID string) int {
 
 // LatestDecisionByTrader 取最近一轮决策（含失败轮；无记录返回 false）。
 func (s *Store) LatestDecisionByTrader(traderID string) (*model.DecisionRecord, bool) {
+	if s.db != nil {
+		var d model.DecisionRecord
+		if err := s.db.Where("trader_id = ?", traderID).Order("timestamp DESC").First(&d).Error; err != nil {
+			return nil, false
+		}
+		return cloneDecision(&d), true
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for i := len(s.decisions) - 1; i >= 0; i-- {
@@ -90,19 +126,39 @@ func cloneDecision(d *model.DecisionRecord) *model.DecisionRecord {
 
 // AddEquitySnapshot 落权益快照（交易循环每周期先存，与 AI 无关）。
 func (s *Store) AddEquitySnapshot(e *model.EquitySnapshot) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if e.ID == "" {
 		e.ID = newID()
 	}
 	if e.Timestamp.IsZero() {
 		e.Timestamp = time.Now().UTC()
 	}
+	if s.db != nil {
+		s.db.Create(e)
+		s.mu.Lock()
+		s.equities = append(s.equities, e)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.equities = append(s.equities, e)
 }
 
 // ListEquityByTrader 按 trader 列权益快照（返回副本切片，时间升序，最早在前）。
 func (s *Store) ListEquityByTrader(traderID string) []*model.EquitySnapshot {
+	if s.db != nil {
+		q := s.db.Model(&model.EquitySnapshot{})
+		if traderID != "" {
+			q = q.Where("trader_id = ?", traderID)
+		}
+		var rows []model.EquitySnapshot
+		q.Order("timestamp ASC").Find(&rows)
+		out := make([]*model.EquitySnapshot, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.EquitySnapshot, 0, 16)

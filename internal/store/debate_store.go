@@ -11,19 +11,33 @@ import (
 
 // CreateDebateSession 创建辩论会话。
 func (s *Store) CreateDebateSession(d *model.DebateSession) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if d.ID == "" {
 		d.ID = newID()
 	}
 	now := time.Now().UTC()
 	d.CreatedAt = now
 	d.UpdatedAt = now
+	if s.db != nil {
+		s.db.Create(d)
+		s.mu.Lock()
+		s.debateSessions[d.ID] = d
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.debateSessions[d.ID] = d
 }
 
 // GetDebateSession 按 ID 查会话（返回副本）。
 func (s *Store) GetDebateSession(id string) (*model.DebateSession, bool) {
+	if s.db != nil {
+		var d model.DebateSession
+		if err := s.db.First(&d, "id = ?", id).Error; err != nil {
+			return nil, false
+		}
+		return &d, true
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	d, ok := s.debateSessions[id]
@@ -39,6 +53,15 @@ func (s *Store) GetDebateSession(id string) (*model.DebateSession, bool) {
 
 // ListDebateSessions 列出全部会话（返回副本切片，最新在前）。
 func (s *Store) ListDebateSessions() []*model.DebateSession {
+	if s.db != nil {
+		var rows []model.DebateSession
+		s.db.Order("created_at DESC").Find(&rows)
+		out := make([]*model.DebateSession, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.DebateSession, 0, len(s.debateSessions))
@@ -56,14 +79,37 @@ func (s *Store) ListDebateSessions() []*model.DebateSession {
 
 // UpdateDebateSession 更新会话。
 func (s *Store) UpdateDebateSession(d *model.DebateSession) {
+	d.UpdatedAt = time.Now().UTC()
+	if s.db != nil {
+		s.db.Save(d)
+		s.mu.Lock()
+		s.debateSessions[d.ID] = d
+		s.mu.Unlock()
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	d.UpdatedAt = time.Now().UTC()
 	s.debateSessions[d.ID] = d
 }
 
 // DeleteDebateSession 删除会话（含关联参与者/消息/投票）。
 func (s *Store) DeleteDebateSession(id string) bool {
+	if s.db != nil {
+		res := s.db.Delete(&model.DebateSession{}, "id = ?", id)
+		if res.RowsAffected == 0 {
+			return false
+		}
+		s.db.Where("session_id = ?", id).Delete(&model.DebateParticipant{})
+		s.db.Where("session_id = ?", id).Delete(&model.DebateMessage{})
+		s.db.Where("session_id = ?", id).Delete(&model.DebateVote{})
+		s.mu.Lock()
+		delete(s.debateSessions, id)
+		s.debateParticipants = filterParticipantsBySession(s.debateParticipants, id)
+		s.debateMessages = filterMessagesBySession(s.debateMessages, id)
+		s.debateVotes = filterVotesBySession(s.debateVotes, id)
+		s.mu.Unlock()
+		return true
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.debateSessions[id]; !ok {
@@ -80,16 +126,33 @@ func (s *Store) DeleteDebateSession(id string) bool {
 
 // AddDebateParticipant 添加参与者。
 func (s *Store) AddDebateParticipant(p *model.DebateParticipant) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if p.ID == "" {
 		p.ID = newID()
 	}
+	if s.db != nil {
+		s.db.Create(p)
+		s.mu.Lock()
+		s.debateParticipants = append(s.debateParticipants, p)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.debateParticipants = append(s.debateParticipants, p)
 }
 
 // ListDebateParticipants 按 session 列参与者。
 func (s *Store) ListDebateParticipants(sessionID string) []*model.DebateParticipant {
+	if s.db != nil {
+		var rows []model.DebateParticipant
+		// 实体无 CreatedAt 列，按插入序返回
+		s.db.Where("session_id = ?", sessionID).Find(&rows)
+		out := make([]*model.DebateParticipant, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.DebateParticipant, 0, 8)
@@ -107,8 +170,6 @@ func (s *Store) ListDebateParticipants(sessionID string) []*model.DebateParticip
 
 // AddDebateMessage 追加消息。
 func (s *Store) AddDebateMessage(m *model.DebateMessage) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if m.ID == "" {
 		m.ID = newID()
 	}
@@ -116,11 +177,29 @@ func (s *Store) AddDebateMessage(m *model.DebateMessage) {
 		m.Timestamp = time.Now().Unix()
 	}
 	m.CreatedAt = time.Now().UTC()
+	if s.db != nil {
+		s.db.Create(m)
+		s.mu.Lock()
+		s.debateMessages = append(s.debateMessages, m)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.debateMessages = append(s.debateMessages, m)
 }
 
 // ListDebateMessages 按 session 列消息（时间升序）。
 func (s *Store) ListDebateMessages(sessionID string) []*model.DebateMessage {
+	if s.db != nil {
+		var rows []model.DebateMessage
+		s.db.Where("session_id = ?", sessionID).Order("timestamp ASC").Find(&rows)
+		out := make([]*model.DebateMessage, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.DebateMessage, 0, 32)
@@ -138,16 +217,33 @@ func (s *Store) ListDebateMessages(sessionID string) []*model.DebateMessage {
 
 // AddDebateVote 追加投票。
 func (s *Store) AddDebateVote(v *model.DebateVote) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if v.ID == "" {
 		v.ID = newID()
 	}
+	if s.db != nil {
+		s.db.Create(v)
+		s.mu.Lock()
+		s.debateVotes = append(s.debateVotes, v)
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.debateVotes = append(s.debateVotes, v)
 }
 
 // ListDebateVotes 按 session 列投票。
 func (s *Store) ListDebateVotes(sessionID string) []*model.DebateVote {
+	if s.db != nil {
+		var rows []model.DebateVote
+		// 实体无 CreatedAt 列，按插入序返回
+		s.db.Where("session_id = ?", sessionID).Find(&rows)
+		out := make([]*model.DebateVote, 0, len(rows))
+		for i := range rows {
+			out = append(out, &rows[i])
+		}
+		return out
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]*model.DebateVote, 0, 8)
