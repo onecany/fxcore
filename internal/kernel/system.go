@@ -43,6 +43,9 @@ func BuildSystemPrompt(cfg dto.StrategyConfig) string {
 	b.WriteString("Open actions MUST include: symbol, quantity, leverage, stop_loss, take_profit, confidence, risk_usd\n")
 	b.WriteString("No formulas, no thousands separators, no tilde (~) in numbers.\n")
 
+	// 模式变体（§9.5 writeModeVariant；四种模式，内置段英文契约）
+	writeModeVariant(&b, cfg.PromptVariant)
+
 	// 用户编辑段 VERBATIM 透传（§9.3 语言契约：不过滤中文）
 	if cfg.CustomPrompt != "" {
 		b.WriteString("\n[User custom prompt - follow verbatim]\n" + cfg.CustomPrompt + "\n")
@@ -62,6 +65,21 @@ func BuildSystemPrompt(cfg dto.StrategyConfig) string {
 		}
 	}
 	return b.String()
+}
+
+// writeModeVariant 模式变体段（§9.5：balanced 默认 / aggressive / conservative / scalping）。
+// 内置段保持英文（模型契约稳定性）；未知值回退 balanced。
+func writeModeVariant(sb *strings.Builder, variant string) {
+	switch variant {
+	case "aggressive":
+		sb.WriteString("Mode: Aggressive. Higher leverage tolerance, faster entries, accept smaller risk/reward; never exceed the leverage caps above.\n")
+	case "conservative":
+		sb.WriteString("Mode: Conservative. Fewer trades, only high-conviction setups where multiple timeframes align; prefer waiting over acting.\n")
+	case "scalping":
+		sb.WriteString("Mode: Scalping. Short timeframes, tight stops, quick scalps; prioritize capital preservation and frequent small wins.\n")
+	default:
+		sb.WriteString("Mode: Balanced. Recommended balance of opportunity and risk; no extreme sizing or overtrading.\n")
+	}
 }
 
 // BuildUserContext 用户上下文（余额/持仓/K线摘要 → 单轮 user 消息）。

@@ -103,6 +103,7 @@ type GridStrategyConfig struct {
 type StrategyConfig struct {
 	StrategyType  string            `json:"strategy_type,omitempty"` // ai | grid | dca
 	Language      string            `json:"language,omitempty"`      // zh | en
+	PromptVariant string            `json:"prompt_variant,omitempty"` // balanced | aggressive | conservative | scalping（§9.5）
 	CoinSource    CoinSourceConfig  `json:"coin_source"`
 	Indicators    IndicatorConfig   `json:"indicators"`
 	RiskControl   RiskControlConfig `json:"risk_control"`

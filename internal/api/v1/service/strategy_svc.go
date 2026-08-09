@@ -25,8 +25,9 @@ func NewStrategyService(s *store.Store) *StrategyService {
 // 最小仓位 12 USDT、保证金 ≤30%、BTC/ETH 杠杆 5 / alt 杠杆 5。
 func DefaultConfig() dto.StrategyConfig {
 	return dto.StrategyConfig{
-		StrategyType: "ai",
-		Language:     "zh",
+		StrategyType:  "ai",
+		Language:      "zh",
+		PromptVariant: "balanced", // §9.5 默认模式
 		CoinSource: dto.CoinSourceConfig{
 			SourceType: dto.CoinSourceStatic,
 			UseAI500:   false,
@@ -206,6 +207,7 @@ func MergeConfigInto(dst *dto.StrategyConfig, raw json.RawMessage) *middleware.A
 	var req struct {
 		StrategyType   *string                `json:"strategy_type"`
 		Language       *string                `json:"language"`
+		PromptVariant  *string                `json:"prompt_variant"`
 		CoinSource     *dto.CoinSourceConfig  `json:"coin_source"`
 		Indicators     *dto.IndicatorConfig   `json:"indicators"`
 		RiskControl    *dto.RiskControlConfig `json:"risk_control"`
@@ -221,6 +223,9 @@ func MergeConfigInto(dst *dto.StrategyConfig, raw json.RawMessage) *middleware.A
 	}
 	if req.Language != nil {
 		dst.Language = *req.Language
+	}
+	if req.PromptVariant != nil {
+		dst.PromptVariant = *req.PromptVariant
 	}
 	if req.CoinSource != nil && req.CoinSource.SourceType != "" {
 		dst.CoinSource = *req.CoinSource

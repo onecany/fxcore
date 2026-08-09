@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/gin-gonic/gin"
 
 	"fxcore/internal/api/v1/dto"
 	"fxcore/internal/api/v1/service"
+	"fxcore/internal/kernel"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
 )
@@ -243,7 +241,7 @@ func (h *StrategyHandler) PreviewPrompt(c *gin.Context) {
 		middleware.WriteError(c, apiErr)
 		return
 	}
-	middleware.WriteOK(c, map[string]string{"prompt": buildSkeletonPrompt(cfg)})
+	middleware.WriteOK(c, map[string]string{"prompt": kernel.BuildSystemPrompt(cfg)})
 }
 
 // TestRun POST /strategies/test-run
@@ -291,26 +289,3 @@ func strategyToDTO(st *model.Strategy) dto.StrategyDTO {
 	}
 }
 
-// buildSkeletonPrompt 基础提示词模板（阶段 3 kernel.buildSystemPrompt 替换）。
-// 契约字段（币源/时间框架/风控）先落盘，让 preview-prompt 端点有可用输出。
-func buildSkeletonPrompt(cfg dto.StrategyConfig) string {
-	var b strings.Builder
-	b.WriteString("You are an experienced crypto futures trader.\n")
-	fmt.Fprintf(&b, "Coin source: %s\n", cfg.CoinSource.SourceType)
-	if len(cfg.CoinSource.StaticCoins) > 0 {
-		fmt.Fprintf(&b, "Static coins: %s\n", strings.Join(cfg.CoinSource.StaticCoins, ", "))
-	}
-	fmt.Fprintf(&b, "Primary timeframe: %s (%d bars)\n", cfg.Indicators.Klines.PrimaryTimeframe, cfg.Indicators.Klines.PrimaryCount)
-	fmt.Fprintf(&b, "Max positions: %d | BTC/ETH leverage: %d | Altcoin leverage: %d\n",
-		cfg.RiskControl.MaxPositions, cfg.RiskControl.BTCEthMaxLeverage, cfg.RiskControl.AltcoinMaxLeverage)
-	fmt.Fprintf(&b, "Min position size: %.0f USDT | Min risk/reward: %.1f | Min confidence: %.0f%%\n",
-		cfg.RiskControl.MinPositionSize, cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MinConfidence*100)
-	if cfg.CustomPrompt != "" {
-		b.WriteString("Custom prompt (verbatim):\n" + cfg.CustomPrompt + "\n")
-	}
-	if cfg.PromptSections != nil && cfg.PromptSections.EntryStandards != "" {
-		b.WriteString("Entry standards (verbatim):\n" + cfg.PromptSections.EntryStandards + "\n")
-	}
-	b.WriteString("Respond with <reasoning>...</reasoning> and <decision>[JSON array]</decision>.\n")
-	return b.String()
-}
