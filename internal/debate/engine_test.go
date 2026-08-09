@@ -37,7 +37,7 @@ func (f *fakeAI) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func testEngine(t *testing.T) (*Engine, *store.Store) {
-	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"})
+	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}

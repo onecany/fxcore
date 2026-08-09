@@ -79,11 +79,29 @@ func main() {
 	adminPass := getenv("ADMIN_PASSWORD", "admin123")
 	adminSignSecret := os.Getenv("ADMIN_SIGN_SECRET") // 空则自动生成
 
+	// 持久化：默认 SQLite（DATA_DIR/fxcore.db），DB_DSN 可切 MariaDB/MySQL。
+	// 例：DB_DSN="user:pass@tcp(127.0.0.1:3306)/fxcore?charset=utf8mb4&parseTime=True&loc=Local"
+	dbDSN := os.Getenv("DB_DSN")
+	gormDB, err := store.OpenDB(dbDSN, getenv("DATA_DIR", "data"))
+	if err != nil {
+		log.Fatalf("[main] init db: %v", err)
+	}
+	defer func() {
+		if sqlDB, derr := gormDB.DB(); derr == nil {
+			_ = sqlDB.Close()
+		}
+	}()
+	if dbDSN == "" {
+		log.Printf("[main] storage: sqlite (data/%s)", store.DefaultDBPath)
+	} else {
+		log.Printf("[main] storage: mysql/mariadb dsn configured")
+	}
+
 	st, err := store.New(store.Config{
 		AdminEmail:      adminEmail,
 		AdminPassword:   adminPass,
 		AdminSignSecret: adminSignSecret,
-	})
+	}, gormDB)
 	if err != nil {
 		log.Fatalf("[main] init store: %v", err)
 	}

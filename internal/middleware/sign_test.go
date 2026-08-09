@@ -25,7 +25,7 @@ const testSecret = "test-sign-secret-0123456789abcdef"
 func newSignEngine(t *testing.T) (*gin.Engine, *jwt.Manager, string, string) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: testSecret})
+	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: testSecret}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

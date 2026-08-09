@@ -13,7 +13,7 @@ import (
 
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	s, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"})
+	s, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

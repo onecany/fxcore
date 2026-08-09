@@ -46,7 +46,7 @@ func (r *fakeRoundTrip) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // testEngine 构造带 mock 依赖的引擎。
 func testEngine(t *testing.T) (*Engine, *store.Store) {
-	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"})
+	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}

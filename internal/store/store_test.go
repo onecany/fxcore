@@ -10,7 +10,7 @@ import (
 
 // L4：WithTrader 回调返回 error 时，map 内对象必须保持原样（副本机制）。
 func TestWithTraderErrorLeavesNoMutation(t *testing.T) {
-	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"})
+	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestWithTraderErrorLeavesNoMutation(t *testing.T) {
 
 // L1：Create 后返回的必须是独立副本，外部修改不影响存储。
 func TestCreateReturnsIndependentCopy(t *testing.T) {
-	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"})
+	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCreateReturnsIndependentCopy(t *testing.T) {
 
 // L1：并发 Create + WithTrader 同一 trader 不产生数据竞争（-race 下跑）。
 func TestCreateAndTransitionConcurrent(t *testing.T) {
-	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"})
+	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

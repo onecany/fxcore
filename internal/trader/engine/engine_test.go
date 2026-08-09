@@ -59,7 +59,7 @@ func TestIsBTCEth(t *testing.T) {
 }
 
 func TestFilterByRisk(t *testing.T) {
-	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"})
+	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	// 建交易员（无模型，仅风控过滤用）
 	st.CreateTrader(&model.Trader{ID: "t1", Status: model.StatusRunning, StrategyID: ""})
 	e := &Engine{store: st}
@@ -110,7 +110,7 @@ type mockModels struct{ m *llm.Model }
 func (m *mockModels) GetModel(id string) (*llm.Model, bool) { return m.m, true }
 
 func TestEngineStartStopLifecycle(t *testing.T) {
-	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"})
+	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	st.CreateTrader(&model.Trader{
 		ID: "t1", Exchange: "mock", Status: model.StatusRunning,
 		ModelConfig: model.ModelConfig{ModelID: "m1"},
@@ -138,7 +138,7 @@ func TestEngineStartStopLifecycle(t *testing.T) {
 }
 
 func TestOrderSyncIdempotent(t *testing.T) {
-	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"})
+	st, _ := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	st.CreateTrader(&model.Trader{ID: "t1", Exchange: "mock", Status: model.StatusRunning})
 	_ = NewEngine(st, &mockCreds{}, &mockModels{}, mockAI(), nil)
 
