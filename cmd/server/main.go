@@ -168,6 +168,7 @@ func main() {
 		Backtest:     btEngine,
 		Debate:       debateEngine,
 		Trader:       traderEngine,
+		StaticDir:    os.Getenv("STATIC_DIR"), // web/dist 构建产物（.hermes.md 验收地址 :6000）
 		AccessTTL:    15 * time.Minute,
 		ExtraOrigins: splitCSV(os.Getenv("CORS_ORIGINS")),
 	})

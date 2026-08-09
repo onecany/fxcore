@@ -3,6 +3,7 @@
 package v1
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/gin-contrib/gzip"
@@ -39,6 +40,7 @@ type Deps struct {
 	Backtest     *backtest.Engine         // 回测引擎（可空：未注入则 backtest 路由不可用）
 	Debate       *debate.Engine           // 辩论引擎（可空：未注入则 debate 路由不可用）
 	Trader       *engine.Engine           // 交易引擎（可空：未注入则 traders 仅状态机）
+	StaticDir    string                   // web/dist 目录（空 = 不托管前端）
 	AccessTTL    time.Duration
 	ExtraOrigins []string // 追加 CORS 白名单
 }
@@ -54,6 +56,13 @@ func NewRouter(d Deps) *gin.Engine {
 		panic(err)
 	}
 	r.Use(middleware.RequestID(), middleware.AccessLog(), middleware.Recovery(), middleware.CORS(d.ExtraOrigins...))
+
+	// 静态托管（web/dist 构建产物；STATIC_DIR 覆盖，空则不托管）
+	if d.StaticDir != "" {
+		r.Static("/assets", filepath.Join(d.StaticDir, "assets"))
+		r.StaticFile("/", filepath.Join(d.StaticDir, "index.html"))
+		r.StaticFile("/favicon.ico", filepath.Join(d.StaticDir, "favicon.ico"))
+	}
 
 	// 404/405 统一信封
 	r.NoRoute(func(c *gin.Context) {
