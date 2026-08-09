@@ -6,18 +6,19 @@ import (
 )
 
 // Trader 交易员实体（状态机：idle→running→paused→running→stopped，见 trader_svc.go）。
+// 嵌套结构体（ModelConfig/RiskConfig/Schedule/Metrics）用 GORM serializer:json 落库。
 type Trader struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Exchange    string          `json:"exchange"`
-	ModelConfig ModelConfig     `json:"model_config"`
-	StrategyID  string          `json:"strategy_id"`
-	RiskConfig  RiskConfig      `json:"risk_config"`
-	Schedule    *Schedule       `json:"schedule,omitempty"`
-	Status      string          `json:"status"`
-	Metrics     Metrics         `json:"metrics"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID          string     `gorm:"primaryKey;size:36" json:"id"`
+	Name        string     `gorm:"size:64;index" json:"name"`
+	Exchange    string     `gorm:"size:32;index" json:"exchange"`
+	ModelConfig ModelConfig `gorm:"serializer:json;type:text" json:"model_config"`
+	StrategyID  string     `gorm:"size:36;index" json:"strategy_id"`
+	RiskConfig  RiskConfig `gorm:"serializer:json;type:text" json:"risk_config"`
+	Schedule    *Schedule  `gorm:"serializer:json;type:text" json:"schedule,omitempty"`
+	Status      string     `gorm:"size:16;index" json:"status"`
+	Metrics     Metrics    `gorm:"serializer:json;type:text" json:"metrics"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // ModelConfig 引用已保存的 AI 模型（model_id 对应 model.AIModel.ID）。
@@ -69,16 +70,16 @@ const (
 // 新增 §10/§15 契约字段：quantity/leverage/status/entry_time/exit_time/
 // realized_pnl/fee/close_reason 等。PositionBuilder 是 position 表唯一写者。
 type Position struct {
-	ID            string     `json:"id"`
-	TraderID      string     `json:"trader_id"`
-	ExchangeID    string     `json:"exchange_id,omitempty"`
-	Symbol        string     `json:"symbol"`
-	Side          string     `json:"side"` // long | short
+	ID            string     `gorm:"primaryKey;size:36" json:"id"`
+	TraderID      string     `gorm:"size:36;index" json:"trader_id"`
+	ExchangeID    string     `gorm:"size:36;index" json:"exchange_id,omitempty"`
+	Symbol        string     `gorm:"size:32;index" json:"symbol"`
+	Side          string     `gorm:"size:8" json:"side"` // long | short
 	Size          float64    `json:"size"` // 兼容旧字段（=quantity）
 	EntryPrice    float64    `json:"entry_price"`
 	PnL           float64    `json:"pnl"` // 兼容旧字段（平仓后=realized_pnl）
 	OpenedAt      time.Time  `json:"opened_at"`
-	ClosedAt      *time.Time `json:"closed_at,omitempty"`
+	ClosedAt      *time.Time `gorm:"index" json:"closed_at,omitempty"`
 	// ---- §10/§15 扩展字段 ----
 	EntryQuantity float64    `json:"entry_quantity,omitempty"` // 开仓数量
 	Quantity      float64    `json:"quantity,omitempty"`       // 当前数量（减仓后变小）
