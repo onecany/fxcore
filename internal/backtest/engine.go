@@ -39,6 +39,7 @@ type Engine struct {
 // run 单个回测运行（运行时状态，元数据持久化在 store）。
 type run struct {
 	mu          sync.Mutex
+	userID      string // 属主用户（P1-8：每用户运行锁）
 	state       string
 	cfg         dto.BacktestConfig
 	cancel      context.CancelFunc
@@ -112,15 +113,16 @@ func (e *Engine) Start(userID string, cfg dto.BacktestConfig) (*dto.RunMetadata,
 	}
 
 	e.mu.Lock()
-	// 全局运行锁（1411）：已有 running run 时拒绝
+	// 每用户运行锁（1411）：同属主用户已有 running run 时拒绝（P1-8：不跨用户互斥）
 	for _, r := range e.runs {
-		if r.isRunning() {
+		if r.isRunning() && (userID == "" || r.userID == "" || r.userID == userID) {
 			e.mu.Unlock()
 			return nil, middleware.BacktestLock("another backtest run is in progress")
 		}
 	}
 	runID := newRunID()
 	r := &run{
+		userID:      userID,
 		state:       dto.BacktestRunning,
 		cfg:         cfg,
 		equity:      cfg.InitialBalance,

@@ -77,10 +77,14 @@ func (s *Store) ListStrategies(userID string) []*model.Strategy {
 }
 
 // GetActiveStrategy 取当前生效策略（is_active=true，单用户场景至多一条）。
-func (s *Store) GetActiveStrategy() (*model.Strategy, bool) {
+func (s *Store) GetActiveStrategy(userID string) (*model.Strategy, bool) {
 	if s.db != nil {
 		var st model.Strategy
-		if err := s.db.Where("is_active = ?", true).First(&st).Error; err != nil {
+		q := s.db.Where("is_active = ?", true)
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		if err := q.First(&st).Error; err != nil {
 			return nil, false
 		}
 		return cloneStrategy(&st), true
@@ -88,7 +92,7 @@ func (s *Store) GetActiveStrategy() (*model.Strategy, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, st := range s.strategies {
-		if st.IsActive {
+		if st.IsActive && (userID == "" || st.UserID == "" || st.UserID == userID) {
 			return cloneStrategy(st), true
 		}
 	}
@@ -133,7 +137,7 @@ func (s *Store) DeleteStrategy(id string) bool {
 
 // ActivateStrategy 置为生效策略：先将其余 is_active 置 false（保证唯一），
 // 再置目标为 true。返回更新后的副本。DB 路径走事务保证原子性。
-func (s *Store) ActivateStrategy(id string) (*model.Strategy, bool) {
+func (s *Store) ActivateStrategy(userID, id string) (*model.Strategy, bool) {
 	if s.db != nil {
 		var out *model.Strategy
 		err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -142,9 +146,12 @@ func (s *Store) ActivateStrategy(id string) (*model.Strategy, bool) {
 				return err
 			}
 			now := time.Now().UTC()
-			if err := tx.Model(&model.Strategy{}).
-				Where("is_active = ? AND id != ?", true, id).
-				Update("is_active", false).Error; err != nil {
+			// 只去激活同属主用户的生效策略（P1-7：is_active 按 user 作用域，不跨用户干扰）
+			deact := tx.Model(&model.Strategy{}).Where("is_active = ? AND id != ?", true, id)
+			if userID != "" {
+				deact = deact.Where("user_id = ?", userID)
+			}
+			if err := deact.Update("is_active", false).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&model.Strategy{}).Where("id = ?", id).
@@ -180,7 +187,7 @@ func (s *Store) ActivateStrategy(id string) (*model.Strategy, bool) {
 	}
 	now := time.Now().UTC()
 	for _, st := range s.strategies {
-		if st.ID != id && st.IsActive {
+		if st.ID != id && st.IsActive && (userID == "" || st.UserID == "" || st.UserID == userID) {
 			st.IsActive = false
 			st.UpdatedAt = now
 		}

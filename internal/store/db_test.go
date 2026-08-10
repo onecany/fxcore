@@ -62,15 +62,15 @@ func TestPersistentCRUD(t *testing.T) {
 	if !ok || st2.Name != "persist-me" || !st2.IsActive {
 		t.Fatalf("strategy not reloaded: %+v", st2)
 	}
-	if act, ok := s2.GetActiveStrategy(); !ok || act.ID != "st1" {
+	if act, ok := s2.GetActiveStrategy(""); !ok || act.ID != "st1" {
 		t.Fatalf("active strategy not reloaded")
 	}
 	// 激活事务：再建一条并激活，旧激活必须被清
 	s2.CreateStrategy(&model.Strategy{ID: "st2", UserID: "u1", Name: "other"})
-	if _, ok := s2.ActivateStrategy("st2"); !ok {
+	if _, ok := s2.ActivateStrategy("", "st2"); !ok {
 		t.Fatal("activate st2 failed")
 	}
-	if act, _ := s2.GetActiveStrategy(); act.ID != "st2" {
+	if act, _ := s2.GetActiveStrategy(""); act.ID != "st2" {
 		t.Fatalf("active = %s, want st2", act.ID)
 	}
 	// 软删除

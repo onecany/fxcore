@@ -176,7 +176,7 @@ func (svc *StrategyService) Activate(userID, id string) (*model.Strategy, *middl
 	if !ok || (userID != "" && st.UserID != userID) {
 		return nil, middleware.NotFound("strategy not found")
 	}
-	activated, ok := svc.store.ActivateStrategy(id)
+	activated, ok := svc.store.ActivateStrategy(userID, id)
 	if !ok {
 		return nil, middleware.NotFound("strategy not found")
 	}
@@ -206,8 +206,8 @@ func (svc *StrategyService) Duplicate(userID, id string) (*model.Strategy, *midd
 }
 
 // GetActive 当前生效策略。
-func (svc *StrategyService) GetActive() (*model.Strategy, *middleware.APIError) {
-	st, ok := svc.store.GetActiveStrategy()
+func (svc *StrategyService) GetActive(userID string) (*model.Strategy, *middleware.APIError) {
+	st, ok := svc.store.GetActiveStrategy(userID)
 	if !ok {
 		return nil, middleware.NotFound("no active strategy")
 	}

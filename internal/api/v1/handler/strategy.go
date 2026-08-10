@@ -97,7 +97,7 @@ func (h *StrategyHandler) Get(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 无生效策略"
 // @Router /strategies/active [get]
 func (h *StrategyHandler) GetActive(c *gin.Context) {
-	st, apiErr := h.svc.GetActive()
+	st, apiErr := h.svc.GetActive(currentUserID(c))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
