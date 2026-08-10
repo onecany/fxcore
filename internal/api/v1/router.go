@@ -4,6 +4,7 @@ package v1
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/gzip"
@@ -66,6 +67,11 @@ func NewRouter(d Deps) *gin.Engine {
 
 	// 404/405 统一信封
 	r.NoRoute(func(c *gin.Context) {
+		// SPA 回退：静态托管开启时，非 API 路径交给 index.html（前端路由刷新不 404）
+		if d.StaticDir != "" && !strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.File(filepath.Join(d.StaticDir, "index.html"))
+			return
+		}
 		middleware.WriteError(c, middleware.NotFound("route not found"))
 	})
 	r.NoMethod(func(c *gin.Context) {
@@ -103,6 +109,7 @@ func NewRouter(d Deps) *gin.Engine {
 		auth := api.Group("/auth", middleware.RateLimit(d.Limiter, "auth"))
 		{
 			auth.POST("/login", authH.Login)
+			auth.POST("/register", authH.Register)
 			auth.POST("/logout", authH.Logout)
 		}
 		// refresh 独立配额（L11：多标签页 15min 并发刷新不应撞 auth 的 5/min/IP 防爆破配额被误登出）

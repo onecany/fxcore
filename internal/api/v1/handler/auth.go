@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -50,9 +52,75 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	u, ok := h.store.GetUserByEmail(req.Email)
+	// 注册时已 ToLower 落库，登录同规范化（大小写变体一致命中）
+	u, ok := h.store.GetUserByEmail(strings.ToLower(strings.TrimSpace(req.Email)))
 	if !ok || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password)) != nil {
 		middleware.WriteError(c, middleware.BadRequest("invalid email or password", nil))
+		return
+	}
+	access, err := h.jm.Issue(u.ID, u.Email)
+	if err != nil {
+		middleware.WriteError(c, middleware.Internal("issue token failed"))
+		return
+	}
+	refresh := store.NewRefreshToken()
+	if err := h.tokens.Set(c.Request.Context(), refresh, u.ID, refreshTTL); err != nil {
+		middleware.WriteError(c, middleware.Internal("store refresh token failed"))
+		return
+	}
+	middleware.SetAccessCookie(c, access, int(h.accessTTL.Seconds()))
+	middleware.WriteOK(c, dto.LoginResponse{
+		User:         userToDTO(u),
+		AccessToken:  access,
+		SignSecret:   u.SignSecret,
+		RefreshToken: refresh,
+	})
+}
+
+// Register POST /auth/register
+// 注册：校验参数 -> 创建用户（email 唯一）-> 签发 access token + refresh token + sign_secret。
+// Register 注册。
+// @Summary 注册
+// @Description 创建账号并直接登录（响应结构与 /auth/login 一致）
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body dto.RegisterRequest true "注册信息（密码 ≥8 位）"
+// @Success 200 {object} dto.ApiResponse[dto.LoginResponse]
+// @Failure 400 {object} dto.ErrorResponse "1001 参数错误 / 邮箱已注册"
+// @Failure 429 {object} dto.ErrorResponse "1005 注册限流（5 次/分钟/IP）"
+// @Router /auth/register [post]
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req dto.RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	if _, ok := h.store.GetUserByEmail(req.Email); ok {
+		middleware.WriteError(c, middleware.BadRequest("email already registered", nil))
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		middleware.WriteError(c, middleware.Internal("hash password failed"))
+		return
+	}
+	nickname := req.Nickname
+	if nickname == "" {
+		nickname = strings.Split(req.Email, "@")[0]
+	}
+	u := &model.User{
+		Email:        strings.ToLower(strings.TrimSpace(req.Email)),
+		PasswordHash: string(hash),
+		Nickname:     nickname,
+		SignSecret:   store.NewSignSecret(),
+	}
+	if err := h.store.CreateUser(u); err != nil {
+		if errors.Is(err, store.ErrEmailTaken) {
+			middleware.WriteError(c, middleware.BadRequest("email already registered", nil))
+			return
+		}
+		middleware.WriteError(c, middleware.Internal("create user failed"))
 		return
 	}
 	access, err := h.jm.Issue(u.ID, u.Email)

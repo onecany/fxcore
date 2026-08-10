@@ -47,6 +47,13 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required,max=128"`
 }
 
+// RegisterRequest 注册请求。
+type RegisterRequest struct {
+	Email    string `json:"email" binding:"required,email,max=255"`
+	Password string `json:"password" binding:"required,min=8,max=128"`
+	Nickname string `json:"nickname,omitempty" binding:"max=64"`
+}
+
 // RefreshRequest 刷新令牌请求。
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
