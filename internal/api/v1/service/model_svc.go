@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -193,10 +194,18 @@ func maskKey(key string) string {
 // newProbeClient 构造探测用 HTTP 客户端：
 // 1. 禁重定向（S1：302 链可把请求导向内网，且 API Key 会随 Bearer 头发往攻击者 URL）
 // 2. 拨号层 IP 校验（S1：拒绝私网/环回/链路本地/元数据网段，防 DNS rebinding）
+// 3. 代理拨号放行（本地代理是信任的；SSRF 校验针对最终目标——CONNECT 代理
+//    路径下 transport 先拨代理地址（如 127.0.0.1:7890），拦截会误伤本地代理）。
 func newProbeClient() *http.Client {
 	tr := httpclient.DefaultTransport().Clone()
 	baseDial := tr.DialContext
+	// 解析 CONNECT 代理地址（与 httpclient.resolveProxy 同序），代理拨号放行
+	proxyHostPort := probeProxyHostPort()
 	tr.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		// 代理地址放行（本地代理信任；SSRF 校验只针对最终请求目标）
+		if proxyHostPort != "" && addr == proxyHostPort {
+			return baseDial(ctx, network, addr)
+		}
 		host, _, err := net.SplitHostPort(addr)
 		if err != nil {
 			return nil, err
@@ -219,6 +228,21 @@ func newProbeClient() *http.Client {
 			return http.ErrUseLastResponse // 禁重定向
 		},
 	}
+}
+
+// probeProxyHostPort 返回 CONNECT 代理的 host:port（与 httpclient.resolveProxy
+// 同序：ALL_PROXY > HTTPS_PROXY > HTTP_PROXY）；无代理返回 ""。
+func probeProxyHostPort() string {
+	for _, key := range []string{"ALL_PROXY", "HTTPS_PROXY", "HTTP_PROXY", "all_proxy", "https_proxy", "http_proxy"} {
+		v := os.Getenv(key)
+		if v == "" {
+			continue
+		}
+		if u, err := url.Parse(v); err == nil && u.Host != "" {
+			return u.Host
+		}
+	}
+	return ""
 }
 
 // isBlockedIP 私网/环回/链路本地/组播/未指定地址一律拒绝。
