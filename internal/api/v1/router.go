@@ -60,7 +60,21 @@ func NewRouter(d Deps) *gin.Engine {
 
 	// 静态托管（web/dist 构建产物；STATIC_DIR 覆盖，空则不托管）
 	if d.StaticDir != "" {
+		// 缓存策略：hash 文件名资源（assets/exchange-icons）强缓存 immutable；
+		// 其余非 API 路径（SPA 入口 index.html 与前端路由回退）一律 no-cache，
+		// 防止浏览器启发式缓存旧 index.html 导致加载旧 bundle（K 线面板等新功能"消失"）。
+		r.Use(func(c *gin.Context) {
+			p := c.Request.URL.Path
+			switch {
+			case strings.HasPrefix(p, "/assets/"), strings.HasPrefix(p, "/exchange-icons/"):
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			case !strings.HasPrefix(p, "/api/"):
+				c.Header("Cache-Control", "no-cache")
+			}
+			c.Next()
+		})
 		r.Static("/assets", filepath.Join(d.StaticDir, "assets"))
+		r.Static("/exchange-icons", filepath.Join(d.StaticDir, "exchange-icons"))
 		r.StaticFile("/", filepath.Join(d.StaticDir, "index.html"))
 		r.StaticFile("/favicon.ico", filepath.Join(d.StaticDir, "favicon.ico"))
 	}
