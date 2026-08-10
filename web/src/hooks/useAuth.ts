@@ -21,6 +21,20 @@ export function useAuth() {
     [setAuth],
   );
 
+  const register = useCallback(
+    async (req: { email: string; password: string; nickname?: string }) => {
+      const resp = await authApi.register(req);
+      setAuth({
+        user: resp.user,
+        accessToken: resp.accessToken,
+        signSecret: resp.signSecret,
+        refreshToken: resp.refreshToken,
+      });
+      return resp.user;
+    },
+    [setAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       // 携带 refresh token 让服务端吊销（S1：登出后 XSS 窃取的 token 不能继续换新）
@@ -30,7 +44,7 @@ export function useAuth() {
     }
   }, [clearAuth]);
 
-  return { user, accessToken, isAuthenticated: !!accessToken, login, logout };
+  return { user, accessToken, isAuthenticated: !!accessToken, login, register, logout };
 }
 
 /** 监听 401 刷新失败（1101 强制登出）事件 */
