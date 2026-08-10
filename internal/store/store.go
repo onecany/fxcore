@@ -93,7 +93,21 @@ func New(cfg Config, db *gorm.DB) (*Store, error) {
 	if err := s.seedAdmin(cfg); err != nil {
 		return nil, err
 	}
+	s.migrateLegacyOwners(cfg.AdminEmail)
 	return s, nil
+}
+
+// migrateLegacyOwners 升级迁移：单用户部署期的空 user_id 存量行归到 admin，
+// 避免 per-user 查询下成为不可见的孤儿（telegram 单例配置；幂等，仅空属主行）。
+func (s *Store) migrateLegacyOwners(adminEmail string) {
+	if s.db == nil {
+		return
+	}
+	var admin model.User
+	if err := s.db.Where("email = ?", adminEmail).First(&admin).Error; err != nil {
+		return
+	}
+	s.db.Model(&model.TelegramConfig{}).Where("user_id = ?", "").Update("user_id", admin.ID)
 }
 
 // NewSignSecret 生成随机签名密钥（HMAC-SHA256 user_secret，128 bit）。

@@ -22,7 +22,8 @@ func NewTelegramService(s *store.Store, km *crypto.KeyManager) *TelegramService 
 
 // Save 保存配置：bot_token RSA 加密 + 校验 model 存在；已绑定 chat 信息保留（单例 upsert）。
 func (svc *TelegramService) Save(userID string, in *dto.SaveTelegramRequest) *middleware.APIError {
-	if _, ok := svc.store.GetModel(in.ModelID); !ok {
+	m, ok := svc.store.GetModel(in.ModelID)
+	if !ok || (userID != "" && m.UserID != "" && m.UserID != userID) {
 		return middleware.NotFound("model not found")
 	}
 	enc, err := svc.km.Encrypt([]byte(in.BotToken))
@@ -49,7 +50,8 @@ func (svc *TelegramService) SetModel(userID string, in *dto.SetTelegramModelRequ
 	if !ok {
 		return middleware.NotFound("telegram not configured")
 	}
-	if _, ok := svc.store.GetModel(in.ModelID); !ok {
+	m, ok := svc.store.GetModel(in.ModelID)
+	if !ok || (userID != "" && m.UserID != "" && m.UserID != userID) {
 		return middleware.NotFound("model not found")
 	}
 	cfg := &model.TelegramConfig{
