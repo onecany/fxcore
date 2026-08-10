@@ -60,7 +60,7 @@ export interface CreateModelRequest {
 export interface TestModelRequest { apiKey: string; modelName: string; provider: AIProvider; }
 
 // ========== 交易员模块 ==========
-export type Exchange = 'binance' | 'hyperliquid' | 'aster' | 'bybit' | 'okx';
+export type Exchange = 'binance' | 'bybit' | 'okx' | 'bitget' | 'gate' | 'kucoin' | 'hyperliquid' | 'aster' | 'indodax' | 'lighter';
 export type TraderStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'error';
 export interface RiskConfig { maxPositionSize: number; stopLoss: number; takeProfit: number; maxDailyLoss: number; }
 export interface CreateTraderRequest {
@@ -72,7 +72,7 @@ export interface CreateTraderRequest {
 }
 export interface TraderResponse extends CreateTraderRequest {
   id: string; status: TraderStatus;
-  metrics: { totalPnL: number; winRate: number; tradeCount: number; dailyPnL: number; };
+  metrics: { totalPnl: number; winRate: number; tradeCount: number; dailyPnl: number; };
   createdAt: string; updatedAt: string;
 }
 
@@ -87,24 +87,27 @@ export interface Position {
   size: number;
   entryPrice: number;
   pnl: number;
-  traderId: string;
+  traderId?: string;
   openedAt: string;
   closedAt?: string;
   // ---- §10/§15 扩展（后端新增字段） ----
-  trader_id?: string;
-  exchange_id?: string;
+  exchangeId?: string;
   quantity?: number;
-  entry_quantity?: number;
-  mark_price?: number;
-  unrealized_pnl?: number;
+  entryQuantity?: number;
+  markPrice?: number;
+  // 注意：unrealized_pn_l/realized_pn_l 归一化后是 unrealizedPnL/realizedPnL（大写 L）
+  unrealizedPnL?: number;
+  // /positions/history 裸 model 直出是 realized_pnl（标准 snake）→ toCamel 得 realizedPnl（小写 l）。
+  // 与 DTO 风格 realizedPnL（大写 L）并存——读取处双拼写兼容（pn_l 契约坑，见 fxcore-development skill）。
+  realizedPnl?: number;
   leverage?: number;
   status?: 'OPEN' | 'CLOSED';
-  entry_time?: number;
-  exit_time?: number;
-  exit_price?: number;
-  realized_pnl?: number;
+  entryTime?: number;
+  exitTime?: number;
+  exitPrice?: number;
+  realizedPnL?: number;
   fee?: number;
-  close_reason?: string;
+  closeReason?: string;
   source?: string;
 }
 
@@ -115,7 +118,7 @@ export interface Strategy {
 
 // ========== 仪表盘聚合接口（减少轮询，合并请求） ==========
 export interface DashboardSummary {
-  account: { totalBalance: number; totalPnL: number; dailyPnL: number; };
+  account: { totalBalance: number; totalPnl: number; dailyPnl: number; };
   activeTraders: TraderResponse[];   // 只返回运行中的前5个
   recentPositions: Position[];       // 只返回最新的5条
   systemHealth: { status: 'healthy' | 'degraded'; aiLatency: number; exchangeLatency: number; };
@@ -135,88 +138,88 @@ export type ExchangeType =
 
 export interface ExchangeAccount {
   id: string;
-  exchange_type: ExchangeType;
-  account_name: string;
+  exchangeType: ExchangeType;
+  accountName: string;
   enabled: boolean;
   testnet?: boolean;
   /** 凭据脱敏返回（如 ab****cd）；创建/更新时传原文 */
-  api_key_prefix?: string;
+  apiKeyPrefix?: string;
   // 各交易所公开字段（凭据列加密存储，响应不含原文）:
   // CEX: api_key + secret_key（okx/gate/kucoin 额外 passphrase）
   // hyperliquid: hyperliquid_wallet_addr
   // aster: aster_user + aster_signer + aster_private_key
   // lighter: lighter_wallet_addr + lighter_private_key + lighter_api_key_private_key + lighter_api_key_index
-  hyperliquid_wallet_addr?: string;
-  aster_user?: string;
-  aster_signer?: string;
-  lighter_wallet_addr?: string;
-  lighter_api_key_index?: number;
-  created_at: string;
-  updated_at: string;
+  hyperliquidWalletAddr?: string;
+  asterUser?: string;
+  asterSigner?: string;
+  lighterWalletAddr?: string;
+  lighterApiKeyIndex?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface CreateExchangeRequest {
-  exchange_type: ExchangeType;
-  account_name: string;
+  exchangeType: ExchangeType;
+  accountName: string;
   enabled?: boolean;
   testnet?: boolean;
-  api_key?: string;
-  secret_key?: string;
+  apiKey?: string;
+  secretKey?: string;
   passphrase?: string;
-  hyperliquid_wallet_addr?: string;
-  aster_user?: string;
-  aster_signer?: string;
-  aster_private_key?: string;
-  lighter_wallet_addr?: string;
-  lighter_private_key?: string;
-  lighter_api_key_private_key?: string;
-  lighter_api_key_index?: number;
+  hyperliquidWalletAddr?: string;
+  asterUser?: string;
+  asterSigner?: string;
+  asterPrivateKey?: string;
+  lighterWalletAddr?: string;
+  lighterPrivateKey?: string;
+  lighterApiKeyPrivateKey?: string;
+  lighterApiKeyIndex?: number;
 }
 
 // ========== 策略（完整 StrategyConfig 树） ==========
 export type CoinSourceType = 'static' | 'ai500' | 'oi_top' | 'oi_low' | 'mixed';
 export interface CoinSourceConfig {
-  source_type: CoinSourceType; static_coins?: string[]; excluded_coins?: string[];
-  use_ai500: boolean; ai500_limit?: number; use_oi_top?: boolean; oi_top_limit?: number;
-  use_oi_low?: boolean; oi_low_limit?: number;
+  sourceType: CoinSourceType; staticCoins?: string[]; excludedCoins?: string[];
+  useAi500: boolean; ai500Limit?: number; useOiTop?: boolean; oiTopLimit?: number;
+  useOiLow?: boolean; oiLowLimit?: number;
 }
 export interface KlineConfig {
-  primary_timeframe: string; primary_count: number; longer_timeframe?: string;
-  longer_count?: number; enable_multi_timeframe: boolean; selected_timeframes?: string[];
+  primaryTimeframe: string; primaryCount: number; longerTimeframe?: string;
+  longerCount?: number; enableMultiTimeframe: boolean; selectedTimeframes?: string[];
 }
 export interface IndicatorConfig {
-  klines: KlineConfig; enable_raw_klines: boolean; enable_ema: boolean; enable_macd: boolean;
-  enable_rsi: boolean; enable_atr: boolean; enable_boll: boolean; enable_volume: boolean;
-  enable_oi: boolean; enable_funding_rate: boolean; ema_periods?: number[]; rsi_periods?: number[];
-  atr_periods?: number[]; boll_periods?: number[];
-  enable_quant_data: boolean; enable_quant_oi: boolean; enable_quant_netflow: boolean;
-  enable_oi_ranking: boolean; oi_ranking_duration?: string; oi_ranking_limit?: number;
-  enable_netflow_ranking: boolean; enable_price_ranking: boolean;
+  klines: KlineConfig; enableRawKlines: boolean; enableEma: boolean; enableMacd: boolean;
+  enableRsi: boolean; enableAtr: boolean; enableBoll: boolean; enableVolume: boolean;
+  enableOi: boolean; enableFundingRate: boolean; emaPeriods?: number[]; rsiPeriods?: number[];
+  atrPeriods?: number[]; bollPeriods?: number[];
+  enableQuantData: boolean; enableQuantOi: boolean; enableQuantNetflow: boolean;
+  enableOiRanking: boolean; oiRankingDuration?: string; oiRankingLimit?: number;
+  enableNetflowRanking: boolean; enablePriceRanking: boolean;
 }
 export interface RiskControlConfig {
-  max_positions: number; btc_eth_max_leverage: number; altcoin_max_leverage: number;
-  btc_eth_max_position_value_ratio: number; altcoin_max_position_value_ratio: number;
-  max_margin_usage: number; min_position_size: number; min_risk_reward_ratio: number;
-  min_confidence: number;
+  maxPositions: number; btcEthMaxLeverage: number; altcoinMaxLeverage: number;
+  btcEthMaxPositionValueRatio: number; altcoinMaxPositionValueRatio: number;
+  maxMarginUsage: number; minPositionSize: number; minRiskRewardRatio: number;
+  minConfidence: number;
 }
 export interface PromptSections {
-  role_definition?: string; trading_frequency?: string; entry_standards?: string; decision_process?: string;
+  roleDefinition?: string; tradingFrequency?: string; entryStandards?: string; decisionProcess?: string;
 }
 export interface GridStrategyConfig {
-  symbol?: string; grid_count?: number; lower_price?: number; upper_price?: number;
-  leverage?: number; investment_usd?: number; max_orders?: number;
+  symbol?: string; gridCount?: number; lowerPrice?: number; upperPrice?: number;
+  leverage?: number; investmentUsd?: number; maxOrders?: number;
 }
 export interface StrategyConfig {
-  strategy_type?: string; language?: 'zh' | 'en';
-  coin_source: CoinSourceConfig; indicators: IndicatorConfig; risk_control: RiskControlConfig;
-  custom_prompt?: string;
-  prompt_sections?: PromptSections;
-  grid_config?: GridStrategyConfig | null;
+  strategyType?: string; language?: 'zh' | 'en';
+  coinSource: CoinSourceConfig; indicators: IndicatorConfig; riskControl: RiskControlConfig;
+  customPrompt?: string;
+  promptSections?: PromptSections;
+  gridConfig?: GridStrategyConfig | null;
 }
 export interface StrategyItem {
   id: string; name: string; description?: string;
-  is_active: boolean; is_default?: boolean; is_public?: boolean;
+  isActive: boolean; isDefault?: boolean; isPublic?: boolean;
   config: StrategyConfig; // 后端返回 StrategyConfig JSON
-  created_at: string; updated_at: string;
+  createdAt: string; updatedAt: string;
 }
 export interface CreateStrategyRequest {
   name: string; description?: string; lang?: 'zh' | 'en'; config?: Partial<StrategyConfig>;
@@ -229,115 +232,136 @@ export interface UpdateStrategyRequest {
 export type DecisionActionType = 'open_long' | 'open_short' | 'close_long' | 'close_short' | 'hold' | 'wait';
 export interface DecisionAction {
   action: DecisionActionType; symbol: string; quantity?: number; leverage?: number;
-  price?: number; stop_loss?: number; take_profit?: number; confidence?: number;
-  reasoning?: string; order_id?: string; success?: boolean; error?: string;
+  price?: number; stopLoss?: number; takeProfit?: number; confidence?: number;
+  reasoning?: string; orderId?: string; success?: boolean; error?: string;
 }
 export interface DecisionRecord {
-  id: string; trader_id: string; cycle_number: number; timestamp: string;
-  system_prompt?: string; input_prompt?: string; cot_trace?: string; decision_json?: string;
-  raw_response?: string; candidate_coins?: string[]; execution_log?: string;
+  id: string; traderId: string; cycleNumber: number; timestamp: string;
+  systemPrompt?: string; inputPrompt?: string; cotTrace?: string; decisionJson?: string;
+  rawResponse?: string; candidateCoins?: string[]; executionLog?: string;
   decisions: DecisionAction[]; success: boolean;
-  error_message?: string; ai_request_duration_ms?: number;
+  errorMessage?: string; aiRequestDurationMs?: number;
+}
+
+// ========== §15 交易运行时数据 ==========
+/** 权益点（后端 EquityPointDTO：timestamp=Unix秒） */
+export interface EquitySnapshot {
+  timestamp: number; equity: number; balance: number;
+  pnl?: number; drawdownPct?: number;
+  marginUsedPct?: number; positionCount?: number;
+}
+export interface Order {
+  id: string; traderId: string; exchangeId?: string; exchangeOrderId?: string; clientOrderId?: string;
+  symbol: string; side: 'buy' | 'sell'; positionSide?: 'long' | 'short';
+  type: string; timeInForce?: string; quantity: number; price?: number; stopPrice?: number;
+  status: string; filledQuantity?: number; avgFillPrice?: number;
+  commission?: number; commissionAsset?: string; leverage?: number;
+  reduceOnly?: boolean; closePosition?: boolean; createdAt: string; updatedAt?: string;
+}
+export interface Fill {
+  id: string; traderId: string; orderId: string; exchangeOrderId?: string; exchangeTradeId?: string;
+  symbol: string; side: 'buy' | 'sell'; price: number; quantity: number; quoteQuantity?: number;
+  commission?: number; commissionAsset?: string; realizedPnl?: number; isMaker?: boolean; createdAt: string;
 }
 export interface Statistics {
-  total_trades: number; win_rate: number; total_pnl: number; profit_factor?: number;
-  sharpe_ratio?: number; max_drawdown_pct?: number; avg_win?: number; avg_loss?: number;
+  totalTrades: number; winRate: number; totalPnl: number; profitFactor?: number;
+  sharpeRatio?: number; maxDrawdownPct?: number; avgWin?: number; avgLoss?: number;
 }
 
 // ========== 回测 ==========
 export type BacktestState = 'created' | 'running' | 'paused' | 'stopped' | 'completed' | 'failed' | 'liquidated';
 export interface BacktestConfig {
-  strategy_id?: string; symbols?: string[]; timeframes?: string[]; cadence?: number;
-  initial_balance?: number; leverage?: number; prompt_variant?: string; prompt_template?: string;
-  temperature?: number; fee_bps?: number; slippage_bps?: number; fill_policy?: 'next_open' | 'bar_vwap' | 'mid';
-  start_time?: number; end_time?: number; ai_cache?: boolean; replay_only?: boolean;
+  strategyId?: string; symbols?: string[]; timeframes?: string[]; cadence?: number;
+  initialBalance?: number; leverage?: number; promptVariant?: string; promptTemplate?: string;
+  temperature?: number; feeBps?: number; slippageBps?: number; fillPolicy?: 'next_open' | 'bar_vwap' | 'mid';
+  startTime?: number; endTime?: number; aiCache?: boolean; replayOnly?: boolean;
 }
 export interface RunMetadata {
-  run_id: string; state: BacktestState; label?: string;
-  symbol_count?: number; progress_pct?: number; equity_last?: number;
-  max_drawdown_pct?: number; liquidated?: boolean; last_error?: string; created_at: string;
+  runId: string; state: BacktestState; label?: string;
+  symbolCount?: number; progressPct?: number; equityLast?: number;
+  maxDrawdownPct?: number; liquidated?: boolean; lastError?: string; createdAt: string;
 }
 export interface RunSummary extends RunMetadata {
   symbols?: string[]; timeframe?: string;
 }
 export interface BacktestStatusPayload extends RunMetadata {
-  current_cycle?: number; total_cycles?: number;
+  currentCycle?: number; totalCycles?: number;
 }
-export interface BacktestEquityPoint { timestamp: number; equity: number; available: number; pnl: number; pnl_pct: number; drawdown_pct: number; cycle: number; }
+export interface BacktestEquityPoint { timestamp: number; equity: number; available: number; pnl: number; pnlPct: number; drawdownPct: number; cycle: number; }
 export interface BacktestTradeEvent {
   timestamp: number; symbol: string; action: string; side?: string; quantity: number; price: number;
-  fee: number; slippage: number; order_value: number; realized_pnl: number; leverage: number;
-  cycle: number; position_after: number; liquidation_flag?: boolean; note?: string;
+  fee: number; slippage: number; orderValue: number; realizedPnl: number; leverage: number;
+  cycle: number; positionAfter: number; liquidationFlag?: boolean; note?: string;
 }
 export interface BacktestMetrics {
-  total_trades: number; win_rate: number; total_pnl: number; profit_factor?: number;
-  sharpe_ratio?: number; max_drawdown_pct?: number; avg_win?: number; avg_loss?: number;
-  liquidated?: boolean; final_equity?: number; return_pct?: number;
+  totalTrades: number; winRate: number; totalPnl: number; profitFactor?: number;
+  sharpeRatio?: number; maxDrawdownPct?: number; avgWin?: number; avgLoss?: number;
+  liquidated?: boolean; finalEquity?: number; returnPct?: number;
 }
 
 // ========== 辩论竞技场 ==========
 export type DebateStatus = 'pending' | 'running' | 'voting' | 'completed' | 'cancelled';
 export type DebatePersonality = 'bull' | 'bear' | 'analyst' | 'contrarian' | 'risk_manager';
 export interface DebateSession {
-  id: string; name: string; strategy_id: string; status: DebateStatus; symbol: string;
-  max_rounds: number; current_round: number; interval_minutes: number; prompt_variant: string;
-  auto_execute: boolean; trader_id?: string; created_at: string; updated_at: string;
+  id: string; name: string; strategyId: string; status: DebateStatus; symbol: string;
+  maxRounds: number; currentRound: number; intervalMinutes: number; promptVariant: string;
+  autoExecute: boolean; traderId?: string; createdAt: string; updatedAt: string;
 }
 export interface DebateParticipant {
-  id: string; session_id: string; ai_model_id: string; ai_model_name: string;
-  provider: string; personality: DebatePersonality; color: string; speak_order: number;
+  id: string; sessionId: string; aiModelId: string; aiModelName: string;
+  provider: string; personality: DebatePersonality; color: string; speakOrder: number;
 }
 export interface DebateMessage {
-  id: string; session_id: string; round: number; participant_id?: string;
-  personality?: string; ai_model_name?: string; content: string; timestamp: number;
+  id: string; sessionId: string; round: number; participantId?: string;
+  personality?: string; aiModelName?: string; content: string; timestamp: number;
 }
 export interface DebateVote {
-  session_id: string; ai_model_id: string; action: DecisionActionType; symbol: string;
-  confidence: number; leverage: number; position_pct: number; stop_loss_pct: number;
-  take_profit_pct: number; reasoning?: string;
+  sessionId: string; aiModelId: string; action: DecisionActionType; symbol: string;
+  confidence: number; leverage: number; positionPct: number; stopLossPct: number;
+  takeProfitPct: number; reasoning?: string;
 }
 export interface CreateDebateRequest {
-  name: string; strategy_id: string; symbol: string;
+  name: string; strategyId: string; symbol: string;
   participants: string[]; // AI model IDs（≥2）
-  max_rounds: number; interval_minutes?: number; prompt_variant?: string;
-  auto_execute?: boolean; trader_id?: string;
+  maxRounds: number; intervalMinutes?: number; promptVariant?: string;
+  autoExecute?: boolean; traderId?: string;
 }
 export interface SessionWithDetails extends DebateSession {
   participants: DebateParticipant[]; messages: DebateMessage[]; votes: DebateVote[];
 }
 
 // ========== Telegram ==========
-export interface TelegramConfig { bot_token: string; model_id: string; chat_id?: string; }
+export interface TelegramConfig { botToken: string; modelId: string; chatId?: string; }
 export interface TelegramConfigDTO {
-  bot_token_prefix?: string; chat_id?: string; username?: string;
-  bound_at?: number; model_id?: string; language?: string;
+  botTokenPrefix?: string; chatId?: string; username?: string;
+  boundAt?: number; modelId?: string; language?: string;
 }
 
 // ========== 加密工具 ==========
-export interface PublicKeyDTO { public_key: string; algorithm: string; }
-export interface DecryptRequest { wrapped_key: string; iv: string; ciphertext: string; aad: string; ts: string; }
+export interface PublicKeyDTO { publicKey: string; algorithm: string; }
+export interface DecryptRequest { wrappedKey: string; iv: string; ciphertext: string; aad: string; ts: string; }
 export interface DecryptResponse { plaintext: string; }
 
 // ========== 数据查询 ==========
-export interface StatusDTO { is_running: boolean; trader_id: string; }
+export interface StatusDTO { isRunning: boolean; traderId: string; }
 export interface AccountInfoDTO {
-  total_equity: number; available_balance: number; unrealized_pnl?: number;
-  position_count?: number; margin_used_pct?: number; currency: string;
+  totalEquity: number; availableBalance: number; unrealizedPnl?: number;
+  positionCount?: number; marginUsedPct?: number; currency: string;
 }
 export interface EquityPointDTO {
-  timestamp: number; equity: number; balance?: number; pnl?: number; pnl_pct?: number; drawdown_pct?: number;
+  timestamp: number; equity: number; balance?: number; pnl?: number; pnlPct?: number; drawdownPct?: number;
 }
 export interface OrderDTO {
-  id: string; trader_id: string; exchange_id?: string; exchange_order_id?: string; client_order_id?: string;
-  symbol: string; side: string; position_side?: string; type: string; time_in_force?: string;
-  quantity: number; price?: number; stop_price?: number; status: string;
-  filled_quantity?: number; avg_fill_price?: number; commission?: number; commission_asset?: string;
-  leverage?: number; reduce_only?: boolean; created_at: string;
+  id: string; traderId: string; exchangeId?: string; exchangeOrderId?: string; clientOrderId?: string;
+  symbol: string; side: string; positionSide?: string; type: string; timeInForce?: string;
+  quantity: number; price?: number; stopPrice?: number; status: string;
+  filledQuantity?: number; avgFillPrice?: number; commission?: number; commissionAsset?: string;
+  leverage?: number; reduceOnly?: boolean; createdAt: string;
 }
 export interface FillDTO {
-  id: string; trader_id: string; order_id: string; exchange_trade_id?: string;
-  symbol: string; side: string; price: number; quantity: number; quote_quantity?: number;
-  commission?: number; commission_asset?: string; realized_pnl?: number; is_maker?: boolean; created_at: string;
+  id: string; traderId: string; orderId: string; exchangeTradeId?: string;
+  symbol: string; side: string; price: number; quantity: number; quoteQuantity?: number;
+  commission?: number; commissionAsset?: string; realizedPnl?: number; isMaker?: boolean; createdAt: string;
 }
 export interface KlineDTO {
   timestamp: number; open: number; high: number; low: number; close: number;
