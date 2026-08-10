@@ -8,7 +8,8 @@ import (
 // DebateSession 辩论会话实体（API设计.md §15 debate_sessions）。
 // 状态机：pending→running→voting→completed | cancelled（§10 DebateStatus）。
 type DebateSession struct {
-	ID              string    `gorm:"primaryKey;size:36" json:"id"`
+	ID              string     `gorm:"primaryKey;size:36" json:"id"`
+	UserID          string     `gorm:"size:36;index" json:"user_id"` // 属主用户（多用户隔离）
 	Name            string    `gorm:"size:64" json:"name"`
 	StrategyID      string    `gorm:"size:36;index" json:"strategy_id"`
 	Status          string    `gorm:"size:16;index" json:"status"`
@@ -62,5 +63,5 @@ type DebateVote struct {
 	StopLossPct   float64         `json:"stop_loss_pct"`
 	TakeProfitPct float64         `json:"take_profit_pct"`
 	Reasoning     string          `gorm:"type:text" json:"reasoning,omitempty"`
-	Extra         json.RawMessage `gorm:"type:text" json:"extra,omitempty"`
+	Extra         json.RawMessage `gorm:"type:text;serializer:json" json:"extra,omitempty"`
 }

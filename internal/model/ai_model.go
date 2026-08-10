@@ -4,7 +4,8 @@ import "time"
 
 // AIModel AI 模型实体。APIKeyEnc 为 RSA-OAEP 加密后的 base64，永不明文落库。
 type AIModel struct {
-	ID           string     `gorm:"primaryKey;size:36" json:"id"`
+	ID           string          `gorm:"primaryKey;size:36" json:"id"`
+	UserID       string          `gorm:"size:36;index" json:"user_id"` // 属主用户（多用户隔离）
 	Name         string     `gorm:"size:64" json:"name"`       // 用户自定义别名
 	Provider     string     `gorm:"size:32;index" json:"provider"`
 	ModelName    string     `gorm:"size:128" json:"model_name"` // 实际模型 ID

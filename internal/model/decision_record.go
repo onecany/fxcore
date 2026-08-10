@@ -44,9 +44,9 @@ type DecisionRecord struct {
 	CotTrace            string            `gorm:"type:text" json:"cot_trace,omitempty"`
 	DecisionJSON        string            `gorm:"type:text" json:"decision_json,omitempty"`
 	RawResponse         string            `gorm:"type:text" json:"raw_response,omitempty"`
-	CandidateCoins      json.RawMessage   `gorm:"type:text" json:"candidate_coins,omitempty"`
+	CandidateCoins      json.RawMessage   `gorm:"type:text;serializer:json" json:"candidate_coins,omitempty"`
 	Decisions           []DecisionAction  `gorm:"-" json:"decisions"`
-	ExecutionLog        json.RawMessage   `gorm:"type:text" json:"execution_log,omitempty"`
+	ExecutionLog        json.RawMessage   `gorm:"type:text;serializer:json" json:"execution_log,omitempty"`
 	Success             bool              `json:"success"`
 	ErrorMessage        string            `gorm:"size:512" json:"error_message,omitempty"`
 	AIRequestDurationMS int64             `json:"ai_request_duration_ms,omitempty"`

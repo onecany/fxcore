@@ -16,7 +16,7 @@ type Strategy struct {
 	IsActive    bool            `gorm:"index" json:"is_active"` // 当前生效策略（唯一）
 	IsDefault   bool            `json:"is_default"`
 	IsPublic    bool            `json:"is_public"`
-	Config      json.RawMessage `gorm:"type:text" json:"config"` // StrategyConfig JSON
+	Config      json.RawMessage `gorm:"type:text;serializer:json" json:"config"` // StrategyConfig JSON
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }

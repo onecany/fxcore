@@ -36,6 +36,7 @@ type Exchange struct {
 	SecretKeyEnc              string     `gorm:"size:4096" json:"-"`
 	PassphraseEnc             string     `gorm:"size:4096" json:"-"`
 	HyperliquidWalletAddr     string     `gorm:"size:128" json:"hyperliquid_wallet_addr,omitempty"`
+	HyperliquidPrivateKeyEnc  string     `gorm:"size:512" json:"-"` // RSA-OAEP 加密的 64 hex 私钥种子
 	AsterUser                 string     `gorm:"size:128" json:"aster_user,omitempty"`
 	AsterSigner               string     `gorm:"size:128" json:"aster_signer,omitempty"`
 	AsterPrivateKeyEnc        string     `gorm:"size:4096" json:"-"`

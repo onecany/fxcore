@@ -9,6 +9,7 @@ import (
 // 嵌套结构体（ModelConfig/RiskConfig/Schedule/Metrics）用 GORM serializer:json 落库。
 type Trader struct {
 	ID          string     `gorm:"primaryKey;size:36" json:"id"`
+	UserID      string     `gorm:"size:36;index" json:"user_id"` // 属主用户（多用户隔离）
 	Name        string     `gorm:"size:64;index" json:"name"`
 	Exchange    string     `gorm:"size:32;index" json:"exchange"`
 	ModelConfig ModelConfig `gorm:"serializer:json;type:text" json:"model_config"`

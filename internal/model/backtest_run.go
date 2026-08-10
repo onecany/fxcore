@@ -65,11 +65,11 @@ type BacktestDecision struct {
 	ID        string          `gorm:"primaryKey;size:36" json:"-"`
 	RunID     string          `gorm:"size:128;index" json:"run_id"`
 	Cycle     int64           `gorm:"index" json:"cycle"`
-	Payload   json.RawMessage `gorm:"type:text" json:"payload"` // DecisionRecord JSON
+	Payload   json.RawMessage `gorm:"type:text;serializer:json" json:"payload"` // DecisionRecord JSON
 }
 
 // BacktestCheckpoint 回测检查点（§15 backtest_checkpoints，断点续跑）。
 type BacktestCheckpoint struct {
 	RunID   string          `gorm:"primaryKey;size:128" json:"run_id"`
-	Payload json.RawMessage `gorm:"type:text" json:"payload"` // 持仓/余额快照 JSON
+	Payload json.RawMessage `gorm:"type:text;serializer:json" json:"payload"` // 持仓/余额快照 JSON
 }
