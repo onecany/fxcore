@@ -79,11 +79,13 @@ func (s *Store) GetOrder(id string) (*model.Order, bool) {
 }
 
 // ListOrders 按 trader 列出订单（返回副本切片，最新在前）。
-func (s *Store) ListOrders(traderID string) []*model.Order {
+func (s *Store) ListOrders(traderID, userID string) []*model.Order {
 	if s.db != nil {
 		q := s.db.Model(&model.Order{})
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		var rows []model.Order
 		q.Order("created_at DESC").Find(&rows)
@@ -95,11 +97,24 @@ func (s *Store) ListOrders(traderID string) []*model.Order {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	out := make([]*model.Order, 0, 16)
 	for i := len(s.orders) - 1; i >= 0; i-- {
 		o := s.orders[i]
 		if traderID != "" && o.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[o.TraderID]
+			if !ok {
+				if t, found := s.traders[o.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[o.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		cp := *o
 		out = append(out, &cp)
@@ -180,11 +195,13 @@ func (s *Store) ListFillsByOrder(orderID string) []*model.Fill {
 }
 
 // ListFillsByTrader 按 trader 列成交（返回副本切片，最新在前）。
-func (s *Store) ListFillsByTrader(traderID string) []*model.Fill {
+func (s *Store) ListFillsByTrader(traderID, userID string) []*model.Fill {
 	if s.db != nil {
 		q := s.db.Model(&model.Fill{})
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		var rows []model.Fill
 		q.Order("created_at DESC").Find(&rows)
@@ -196,11 +213,24 @@ func (s *Store) ListFillsByTrader(traderID string) []*model.Fill {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	out := make([]*model.Fill, 0, 16)
 	for i := len(s.fills) - 1; i >= 0; i-- {
 		f := s.fills[i]
 		if traderID != "" && f.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[f.TraderID]
+			if !ok {
+				if t, found := s.traders[f.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[f.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		cp := *f
 		out = append(out, &cp)

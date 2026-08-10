@@ -43,7 +43,7 @@ var passphraseTypes = map[string]bool{
 }
 
 // Create 创建交易所：先按类型校验必填字段，再 RSA 加密凭据落库。
-func (svc *ExchangeService) Create(in *dto.CreateExchangeRequest) (*model.Exchange, *middleware.APIError) {
+func (svc *ExchangeService) Create(userID string, in *dto.CreateExchangeRequest) (*model.Exchange, *middleware.APIError) {
 	if !ValidExchangeTypes[in.ExchangeType] {
 		return nil, middleware.BadRequest("unsupported exchange type", map[string]string{"exchange_type": "must be one of binance,bybit,okx,bitget,gate,kucoin,indodax,hyperliquid,aster,lighter"})
 	}
@@ -54,6 +54,7 @@ func (svc *ExchangeService) Create(in *dto.CreateExchangeRequest) (*model.Exchan
 		return nil, err
 	}
 	e := &model.Exchange{
+		UserID: userID,
 		ExchangeType: in.ExchangeType,
 		AccountName:  strings.TrimSpace(in.AccountName),
 	}
@@ -76,9 +77,12 @@ func (svc *ExchangeService) Create(in *dto.CreateExchangeRequest) (*model.Exchan
 
 // Update 部分更新（Partial<CreateExchangeRequest>）：指针字段区分未传/置空；
 // 检测到新 Key 时用当前公钥重新加密（Key 轮换，文档 6.2 同语义）。
-func (svc *ExchangeService) Update(id string, in *dto.UpdateExchangeRequest) (*model.Exchange, *middleware.APIError) {
+func (svc *ExchangeService) Update(id, userID string, in *dto.UpdateExchangeRequest) (*model.Exchange, *middleware.APIError) {
 	e, ok := svc.store.GetExchange(id)
 	if !ok {
+		return nil, middleware.NotFound("exchange not found")
+	}
+	if userID != "" && e.UserID != "" && e.UserID != userID {
 		return nil, middleware.NotFound("exchange not found")
 	}
 	if in.ExchangeType != nil {
@@ -109,21 +113,28 @@ func (svc *ExchangeService) Update(id string, in *dto.UpdateExchangeRequest) (*m
 }
 
 // List 全部未删除交易所（凭据脱敏在 handler 的 toDTO 完成）。
-func (svc *ExchangeService) List() []*model.Exchange {
-	return svc.store.ListExchanges()
+func (svc *ExchangeService) List(userID string) []*model.Exchange {
+	return svc.store.ListExchanges(userID)
 }
 
 // Get 单个交易所。
-func (svc *ExchangeService) Get(id string) (*model.Exchange, *middleware.APIError) {
+func (svc *ExchangeService) Get(id, userID string) (*model.Exchange, *middleware.APIError) {
 	e, ok := svc.store.GetExchange(id)
 	if !ok {
+		return nil, middleware.NotFound("exchange not found")
+	}
+	if userID != "" && e.UserID != "" && e.UserID != userID {
 		return nil, middleware.NotFound("exchange not found")
 	}
 	return e, nil
 }
 
 // Delete 软删除（断开关联交易员语义）。
-func (svc *ExchangeService) Delete(id string) *middleware.APIError {
+func (svc *ExchangeService) Delete(id, userID string) *middleware.APIError {
+	e, ok := svc.store.GetExchange(id)
+	if !ok || (userID != "" && e.UserID != "" && e.UserID != userID) {
+		return middleware.NotFound("exchange not found")
+	}
 	if !svc.store.DeleteExchange(id) {
 		return middleware.NotFound("exchange not found")
 	}
@@ -205,6 +216,13 @@ func (svc *ExchangeService) applyCredentials(e *model.Exchange, in *dto.CreateEx
 		}
 		e.LighterAPIKeyPrivateKeyEnc = enc
 	}
+	if in.HyperliquidPrivateKey != "" {
+		enc, err := svc.km.Encrypt([]byte(in.HyperliquidPrivateKey))
+		if err != nil {
+			return middleware.NewAPIError(middleware.CodeInternal, http.StatusInternalServerError, "encrypt hyperliquid_private_key failed")
+		}
+		e.HyperliquidPrivateKeyEnc = enc
+	}
 	e.HyperliquidWalletAddr = in.HyperliquidWalletAddr
 	e.AsterUser = in.AsterUser
 	e.AsterSigner = in.AsterSigner
@@ -264,6 +282,13 @@ func (svc *ExchangeService) applyCredentialsUpdate(e *model.Exchange, in *dto.Up
 			return apiErr
 		}
 		e.LighterAPIKeyPrivateKeyEnc = enc
+	}
+	if in.HyperliquidPrivateKey != nil && *in.HyperliquidPrivateKey != "" {
+		enc, apiErr := encrypt(*in.HyperliquidPrivateKey)
+		if apiErr != nil {
+			return apiErr
+		}
+		e.HyperliquidPrivateKeyEnc = enc
 	}
 	if in.HyperliquidWalletAddr != nil {
 		e.HyperliquidWalletAddr = *in.HyperliquidWalletAddr

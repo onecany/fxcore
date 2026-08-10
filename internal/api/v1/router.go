@@ -179,7 +179,7 @@ func NewRouter(d Deps) *gin.Engine {
 		write.DELETE("/telegram/binding", telegramH.DeleteBinding)
 
 		// --- 数据/市场（§11 data + market 路由） ---
-		dataH := handler.NewDataHandler(service.NewDataService(d.Store, d.Klines))
+		dataH := handler.NewDataHandler(service.NewDataService(d.Store, d.Klines), d.Store)
 		read.GET("/status", dataH.Status)
 		read.GET("/account", dataH.Account)
 		read.GET("/decisions", dataH.Decisions)

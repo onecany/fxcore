@@ -31,11 +31,13 @@ func (s *Store) AddDecision(d *model.DecisionRecord) {
 
 // ListDecisionsByTrader 按 trader 列决策（返回深拷贝副本切片，最新在前）。
 // offset/limit 分页；traderID 为空则返回全部。
-func (s *Store) ListDecisionsByTrader(traderID string, offset, limit int) []*model.DecisionRecord {
+func (s *Store) ListDecisionsByTrader(traderID, userID string, offset, limit int) []*model.DecisionRecord {
 	if s.db != nil {
 		q := s.db.Model(&model.DecisionRecord{})
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		var rows []model.DecisionRecord
 		q.Order("timestamp DESC").Offset(offset).Limit(limit).Find(&rows)
@@ -47,11 +49,24 @@ func (s *Store) ListDecisionsByTrader(traderID string, offset, limit int) []*mod
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	out := make([]*model.DecisionRecord, 0, 16)
 	for i := len(s.decisions) - 1; i >= 0; i-- {
 		d := s.decisions[i]
 		if traderID != "" && d.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[d.TraderID]
+			if !ok {
+				if t, found := s.traders[d.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[d.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		out = append(out, cloneDecision(d))
 	}
@@ -66,7 +81,7 @@ func (s *Store) ListDecisionsByTrader(traderID string, offset, limit int) []*mod
 }
 
 // CountDecisions 按 trader 统计决策条数。
-func (s *Store) CountDecisions(traderID string) int {
+func (s *Store) CountDecisions(traderID, userID string) int {
 	if s.db != nil {
 		q := s.db.Model(&model.DecisionRecord{})
 		if traderID != "" {
@@ -145,11 +160,13 @@ func (s *Store) AddEquitySnapshot(e *model.EquitySnapshot) {
 }
 
 // ListEquityByTrader 按 trader 列权益快照（返回副本切片，时间升序，最早在前）。
-func (s *Store) ListEquityByTrader(traderID string) []*model.EquitySnapshot {
+func (s *Store) ListEquityByTrader(traderID, userID string) []*model.EquitySnapshot {
 	if s.db != nil {
 		q := s.db.Model(&model.EquitySnapshot{})
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		var rows []model.EquitySnapshot
 		q.Order("timestamp ASC").Find(&rows)
@@ -161,10 +178,23 @@ func (s *Store) ListEquityByTrader(traderID string) []*model.EquitySnapshot {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	out := make([]*model.EquitySnapshot, 0, 16)
 	for _, e := range s.equities {
 		if traderID != "" && e.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[e.TraderID]
+			if !ok {
+				if t, found := s.traders[e.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[e.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		cp := *e
 		out = append(out, &cp)

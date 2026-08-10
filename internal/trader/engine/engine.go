@@ -23,8 +23,8 @@ import (
 
 // CredentialsResolver 交易所凭据解析（组装层注入，引擎不感知 RSA 解密）。
 type CredentialsResolver interface {
-	// Resolve 按交易所类型取可用账户凭据（已解密）。
-	Resolve(exchangeType string) (*exchange.Credentials, bool)
+	// Resolve 按交易所类型 + 属主用户取可用账户凭据（已解密，多用户隔离）。
+	Resolve(exchangeType, userID string) (*exchange.Credentials, bool)
 }
 
 // Engine 交易引擎管理器。
@@ -104,6 +104,13 @@ func (e *Engine) Stop(traderID string) {
 // loop 交易循环：首周期立即执行，之后按 interval ticker。
 // 状态机由 store 驱动：paused 等待、stopped 退出（§14.1）。
 func (e *Engine) loop(ctx context.Context, traderID string) {
+	// 任何退出路径（GetTrader 失败 / stopped / ctx 取消）都清理 runner，
+	// 避免 trader 被删后 IsRunning 永久 true 导致无法重建（P2-7）。
+	defer func() {
+		e.mu.Lock()
+		delete(e.runners, traderID)
+		e.mu.Unlock()
+	}()
 	first := true
 	for {
 		select {
@@ -405,7 +412,7 @@ func (e *Engine) adapterFor(t *model.Trader) (exchange.Adapter, error) {
 	if e.creds == nil {
 		return nil, fmt.Errorf("engine: no credentials resolver")
 	}
-	creds, ok := e.creds.Resolve(t.Exchange)
+	creds, ok := e.creds.Resolve(t.Exchange, t.UserID)
 	if !ok {
 		return nil, fmt.Errorf("engine: no exchange account for %s", t.Exchange)
 	}

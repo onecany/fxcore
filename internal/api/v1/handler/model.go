@@ -50,7 +50,7 @@ func (h *ModelHandler) List(c *gin.Context) {
 		return
 	}
 	fields := splitFields(q.Fields)
-	models := h.svc.List()
+	models := h.svc.List(currentUserID(c))
 	out := make([]dto.AIModelDTO, 0, len(models))
 	for _, m := range models {
 		out = append(out, modelToDTO(m))
@@ -96,7 +96,7 @@ func (h *ModelHandler) Create(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	m, apiErr := h.svc.Create(&req)
+	m, apiErr := h.svc.Create(currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -124,7 +124,7 @@ func (h *ModelHandler) Update(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	m, apiErr := h.svc.Update(id, &req)
+	m, apiErr := h.svc.Update(id, currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -143,7 +143,7 @@ func (h *ModelHandler) Update(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 模型不存在"
 // @Router /models/{id} [delete]
 func (h *ModelHandler) Delete(c *gin.Context) {
-	if apiErr := h.svc.Delete(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Delete(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -167,7 +167,7 @@ func (h *ModelHandler) Delete(c *gin.Context) {
 // @Failure 504 {object} dto.ErrorResponse "1302 AI 服务超时"
 // @Router /models/{id}/test [post]
 func (h *ModelHandler) Test(c *gin.Context) {
-	m, apiErr := h.svc.Get(c.Param("id"))
+	m, apiErr := h.svc.Get(c.Param("id"), currentUserID(c))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return

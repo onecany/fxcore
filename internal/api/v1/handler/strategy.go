@@ -41,7 +41,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 	}
 	page, size := q.Normalized()
 	fields := splitFields(q.Fields)
-	all := h.svc.List()
+	all := h.svc.List(currentUserID(c))
 	total := len(all)
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
@@ -80,7 +80,7 @@ func (h *StrategyHandler) List(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 策略不存在"
 // @Router /strategies/{id} [get]
 func (h *StrategyHandler) Get(c *gin.Context) {
-	st, apiErr := h.svc.Get(c.Param("id"))
+	st, apiErr := h.svc.Get(c.Param("id"), currentUserID(c))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -133,7 +133,7 @@ func (h *StrategyHandler) Create(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	st, apiErr := h.svc.Create(&req)
+	st, apiErr := h.svc.Create(currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -158,7 +158,7 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	st, apiErr := h.svc.Update(c.Param("id"), &req)
+	st, apiErr := h.svc.Update(c.Param("id"), currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -177,7 +177,7 @@ func (h *StrategyHandler) Update(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 策略不存在"
 // @Router /strategies/{id} [delete]
 func (h *StrategyHandler) Delete(c *gin.Context) {
-	if apiErr := h.svc.Delete(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Delete(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -194,7 +194,7 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 策略不存在"
 // @Router /strategies/{id}/activate [post]
 func (h *StrategyHandler) Activate(c *gin.Context) {
-	if _, apiErr := h.svc.Activate(c.Param("id")); apiErr != nil {
+	if _, apiErr := h.svc.Activate(currentUserID(c), c.Param("id")); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -211,7 +211,7 @@ func (h *StrategyHandler) Activate(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 策略不存在"
 // @Router /strategies/{id}/duplicate [post]
 func (h *StrategyHandler) Duplicate(c *gin.Context) {
-	st, apiErr := h.svc.Duplicate(c.Param("id"))
+	st, apiErr := h.svc.Duplicate(currentUserID(c), c.Param("id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return

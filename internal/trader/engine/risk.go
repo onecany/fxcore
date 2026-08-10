@@ -116,7 +116,7 @@ func (e *Engine) filterByRisk(t *model.Trader, adapter exchange.Adapter, balance
 // 返回需要强平的 symbol 列表。
 func (e *Engine) maxDrawdownGuard(traderID string, positions []exchange.Position, equity float64) []string {
 	// 峰值从最近权益快照序列计算
-	snapshots := e.store.ListEquityByTrader(traderID)
+	snapshots := e.store.ListEquityByTrader(traderID, "")
 	if len(snapshots) == 0 {
 		return nil
 	}
@@ -126,9 +126,9 @@ func (e *Engine) maxDrawdownGuard(traderID string, positions []exchange.Position
 			peak = s.TotalEquity
 		}
 	}
-	// 盈利>5%（相对首个快照）且回撤 ≥40%
+	// 盈利>5%（相对首个快照，用当前权益判断）且自峰回撤 ≥40%
 	base := snapshots[0].TotalEquity
-	if base <= 0 || peak <= base*1.05 {
+	if base <= 0 || equity <= base*1.05 {
 		return nil
 	}
 	if peak <= 0 {

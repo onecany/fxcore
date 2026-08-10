@@ -30,10 +30,14 @@ func (s *Store) CreateDebateSession(d *model.DebateSession) {
 }
 
 // GetDebateSession 按 ID 查会话（返回副本）。
-func (s *Store) GetDebateSession(id string) (*model.DebateSession, bool) {
+func (s *Store) GetDebateSession(id, userID string) (*model.DebateSession, bool) {
 	if s.db != nil {
 		var d model.DebateSession
-		if err := s.db.First(&d, "id = ?", id).Error; err != nil {
+		q := s.db
+		if userID != "" {
+			q = q.Where("user_id = ? OR user_id = ''", userID)
+		}
+		if err := q.First(&d, "id = ?", id).Error; err != nil {
 			return nil, false
 		}
 		return &d, true
@@ -44,6 +48,9 @@ func (s *Store) GetDebateSession(id string) (*model.DebateSession, bool) {
 	if !ok {
 		return nil, false
 	}
+	if userID != "" && d.UserID != "" && d.UserID != userID {
+		return nil, false
+	}
 	cp := *d
 	if d.Consensus != "" {
 		cp.Consensus = d.Consensus
@@ -52,10 +59,14 @@ func (s *Store) GetDebateSession(id string) (*model.DebateSession, bool) {
 }
 
 // ListDebateSessions 列出全部会话（返回副本切片，最新在前）。
-func (s *Store) ListDebateSessions() []*model.DebateSession {
+func (s *Store) ListDebateSessions(userID string) []*model.DebateSession {
 	if s.db != nil {
 		var rows []model.DebateSession
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.DebateSession, 0, len(rows))
 		for i := range rows {
 			out = append(out, &rows[i])
@@ -66,6 +77,9 @@ func (s *Store) ListDebateSessions() []*model.DebateSession {
 	defer s.mu.RUnlock()
 	out := make([]*model.DebateSession, 0, len(s.debateSessions))
 	for _, d := range s.debateSessions {
+		if userID != "" && d.UserID != "" && d.UserID != userID {
+			continue
+		}
 		cp := *d
 		out = append(out, &cp)
 	}

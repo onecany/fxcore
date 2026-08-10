@@ -77,7 +77,7 @@ func (e *Engine) Personalities() []dto.Personality {
 }
 
 // Create 创建会话（§11：participants≥2，max_rounds≤5）。
-func (e *Engine) Create(in dto.CreateDebateRequest) (*model.DebateSession, *middleware.APIError) {
+func (e *Engine) Create(userID string, in dto.CreateDebateRequest) (*model.DebateSession, *middleware.APIError) {
 	if len(in.Participants) < 2 || len(in.Participants) > 5 {
 		return nil, middleware.BadRequest("participants must be 2-5", map[string]string{"participants": "2-5 AI model IDs"})
 	}
@@ -103,6 +103,7 @@ func (e *Engine) Create(in dto.CreateDebateRequest) (*model.DebateSession, *midd
 	}
 
 	sess := &model.DebateSession{
+		UserID:          userID,
 		Name:            in.Name,
 		StrategyID:      in.StrategyID,
 		Status:          dto.DebatePending,
@@ -137,18 +138,18 @@ func (e *Engine) Create(in dto.CreateDebateRequest) (*model.DebateSession, *midd
 	e.sessions[sess.ID] = &session{meta: sess}
 	e.mu.Unlock()
 
-	created, _ := e.store.GetDebateSession(sess.ID)
+	created, _ := e.store.GetDebateSession(sess.ID, "")
 	return created, nil
 }
 
 // List 会话列表。
-func (e *Engine) List() []*model.DebateSession {
-	return e.store.ListDebateSessions()
+func (e *Engine) List(userID string) []*model.DebateSession {
+	return e.store.ListDebateSessions(userID)
 }
 
 // Get 会话详情（含参与者/消息/投票）。
-func (e *Engine) Get(id string) (*dto.SessionWithDetailsDTO, *middleware.APIError) {
-	sess, ok := e.store.GetDebateSession(id)
+func (e *Engine) Get(id, userID string) (*dto.SessionWithDetailsDTO, *middleware.APIError) {
+	sess, ok := e.store.GetDebateSession(id, userID)
 	if !ok {
 		return nil, middleware.NotFound("debate session not found")
 	}
@@ -174,7 +175,10 @@ func (e *Engine) Get(id string) (*dto.SessionWithDetailsDTO, *middleware.APIErro
 }
 
 // Start 启动辩论（pending→running）。
-func (e *Engine) Start(id string) *middleware.APIError {
+func (e *Engine) Start(userID, id string) *middleware.APIError {
+	if _, apiErr := e.Get(id, userID); apiErr != nil {
+		return apiErr
+	}
 	s, apiErr := e.getSession(id)
 	if apiErr != nil {
 		return apiErr
@@ -196,7 +200,10 @@ func (e *Engine) Start(id string) *middleware.APIError {
 }
 
 // Cancel 取消（running/voting→cancelled）。
-func (e *Engine) Cancel(id string) *middleware.APIError {
+func (e *Engine) Cancel(userID, id string) *middleware.APIError {
+	if _, apiErr := e.Get(id, userID); apiErr != nil {
+		return apiErr
+	}
 	s, apiErr := e.getSession(id)
 	if apiErr != nil {
 		return apiErr
@@ -329,7 +336,7 @@ func (e *Engine) getSession(id string) (*session, *middleware.APIError) {
 	defer e.mu.Unlock()
 	if s, ok := e.sessions[id]; ok {
 		// 同步 store 元数据（进程内状态权威）
-		if meta, exists := e.store.GetDebateSession(id); exists {
+		if meta, exists := e.store.GetDebateSession(id, ""); exists {
 			s.mu.Lock()
 			s.meta.Status = meta.Status
 			s.meta.CurrentRound = meta.CurrentRound
@@ -337,7 +344,7 @@ func (e *Engine) getSession(id string) (*session, *middleware.APIError) {
 		}
 		return s, nil
 	}
-	if _, exists := e.store.GetDebateSession(id); exists {
+	if _, exists := e.store.GetDebateSession(id, ""); exists {
 		return &session{meta: &model.DebateSession{ID: id, Status: dto.DebateCompleted}}, nil
 	}
 	return nil, middleware.NotFound("debate session not found")

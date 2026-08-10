@@ -46,7 +46,7 @@ func (h *TraderHandler) List(c *gin.Context) {
 	page, size := q.Normalized()
 	fields := splitFields(q.Fields)
 
-	all := h.svc.List()
+	all := h.svc.List(currentUserID(c))
 	var filtered []*model.Trader
 	for _, t := range all {
 		if q.Status != "" && t.Status != q.Status {
@@ -94,7 +94,7 @@ func (h *TraderHandler) List(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 交易员不存在"
 // @Router /traders/{id} [get]
 func (h *TraderHandler) Get(c *gin.Context) {
-	t, apiErr := h.svc.Get(c.Param("id"))
+	t, apiErr := h.svc.Get(c.Param("id"), currentUserID(c))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -120,7 +120,7 @@ func (h *TraderHandler) Create(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	t, apiErr := h.svc.Create(&req)
+	t, apiErr := h.svc.Create(currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -147,7 +147,7 @@ func (h *TraderHandler) Update(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	t, apiErr := h.svc.Update(c.Param("id"), &req)
+	t, apiErr := h.svc.Update(c.Param("id"), currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -166,7 +166,7 @@ func (h *TraderHandler) Update(c *gin.Context) {
 // @Failure 409 {object} dto.ErrorResponse "1204 已在运行"
 // @Router /traders/{id}/start [post]
 func (h *TraderHandler) Start(c *gin.Context) {
-	if apiErr := h.svc.Start(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Start(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -184,7 +184,7 @@ func (h *TraderHandler) Start(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 交易员不存在 / 非法迁移"
 // @Router /traders/{id}/pause [post]
 func (h *TraderHandler) Pause(c *gin.Context) {
-	if apiErr := h.svc.Pause(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Pause(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -202,7 +202,7 @@ func (h *TraderHandler) Pause(c *gin.Context) {
 // @Failure 409 {object} dto.ErrorResponse "1204 已在运行"
 // @Router /traders/{id}/resume [post]
 func (h *TraderHandler) Resume(c *gin.Context) {
-	if apiErr := h.svc.Resume(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Resume(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -220,7 +220,7 @@ func (h *TraderHandler) Resume(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 交易员不存在 / 非法迁移"
 // @Router /traders/{id}/stop [post]
 func (h *TraderHandler) Stop(c *gin.Context) {
-	if apiErr := h.svc.Stop(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Stop(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -242,7 +242,7 @@ func (h *TraderHandler) ListPositions(c *gin.Context) {
 	_ = c.ShouldBindQuery(&q)
 	fields := splitFields(q.Fields)
 
-	positions := h.svc.ListPositions(q.Symbol)
+	positions := h.svc.ListPositions(currentUserID(c), q.Symbol)
 	out := make([]dto.PositionDTO, 0, len(positions))
 	for _, p := range positions {
 		out = append(out, positionToDTO(p))
@@ -291,7 +291,7 @@ func (h *TraderHandler) ClosePosition(c *gin.Context) {
 		}
 		pnl = *req.PnL
 	}
-	p, apiErr := h.svc.ClosePosition(c.Param("id"), pnl)
+	p, apiErr := h.svc.ClosePosition(currentUserID(c), c.Param("id"), pnl)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -340,14 +340,28 @@ func traderToDTO(t *model.Trader) dto.TraderDTO {
 
 func positionToDTO(p *model.Position) dto.PositionDTO {
 	return dto.PositionDTO{
-		ID:         p.ID,
-		Symbol:     p.Symbol,
-		Side:       p.Side,
-		Size:       p.Size,
-		EntryPrice: p.EntryPrice,
-		PnL:        p.PnL,
-		TraderID:   p.TraderID,
-		OpenedAt:   p.OpenedAt,
-		ClosedAt:   p.ClosedAt,
+		ID:            p.ID,
+		TraderID:      p.TraderID,
+		ExchangeID:    p.ExchangeID,
+		Symbol:        p.Symbol,
+		Side:          p.Side,
+		Size:          p.Size,
+		EntryPrice:    p.EntryPrice,
+		PnL:           p.PnL,
+		OpenedAt:      p.OpenedAt,
+		ClosedAt:      p.ClosedAt,
+		EntryQuantity: p.EntryQuantity,
+		Quantity:      p.Quantity,
+		MarkPrice:     p.MarkPrice,
+		UnrealizedPnL: p.UnrealizedPnL,
+		Leverage:      p.Leverage,
+		Status:        p.Status,
+		EntryTime:     p.EntryTime,
+		ExitTime:      p.ExitTime,
+		ExitPrice:     p.ExitPrice,
+		RealizedPnL:   p.RealizedPnL,
+		Fee:           p.Fee,
+		CloseReason:   p.CloseReason,
+		Source:        p.Source,
 	}
 }

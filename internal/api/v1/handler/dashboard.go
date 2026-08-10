@@ -57,7 +57,7 @@ func NewDashboardHandler(s *store.Store, jm *jwt.Manager) *DashboardHandler {
 // @Success 200 {object} dto.ApiResponse[dto.DashboardSummary]
 // @Router /dashboard [get]
 func (h *DashboardHandler) GetDashboard(c *gin.Context) {
-	middleware.WriteOK(c, h.aggregate())
+	middleware.WriteOK(c, h.aggregate(currentUserID(c)))
 }
 
 // WS GET /ws/dashboard?token=xxx
@@ -139,7 +139,7 @@ func (h *DashboardHandler) WS(c *gin.Context) {
 	for {
 		select {
 		case <-pushTicker.C:
-			if err := conn.WriteJSON(gin.H{"type": "dashboard", "ts": time.Now().UnixMilli(), "data": h.aggregate()}); err != nil {
+			if err := conn.WriteJSON(gin.H{"type": "dashboard", "ts": time.Now().UnixMilli(), "data": h.aggregate(userIDOfClaims(claims))}); err != nil {
 				return
 			}
 		case <-heartbeatTicker.C:
@@ -155,7 +155,7 @@ func (h *DashboardHandler) WS(c *gin.Context) {
 }
 
 // aggregate 并发聚合仪表盘数据（sync.WaitGroup）。
-func (h *DashboardHandler) aggregate() dto.DashboardSummary {
+func (h *DashboardHandler) aggregate(userID string) dto.DashboardSummary {
 	var (
 		wg       sync.WaitGroup
 		account  dto.AccountSummary
@@ -166,10 +166,10 @@ func (h *DashboardHandler) aggregate() dto.DashboardSummary {
 	)
 
 	wg.Add(4)
-	go h.safeAggregate(&wg, func() { account = h.buildAccount() })
-	go h.safeAggregate(&wg, func() { traders = h.buildActiveTraders() })
-	go h.safeAggregate(&wg, func() { positions = h.buildRecentPositions() })
-	go h.safeAggregate(&wg, func() { aiLat, exchLat = h.buildHealth() })
+	go h.safeAggregate(&wg, func() { account = h.buildAccount(userID) })
+	go h.safeAggregate(&wg, func() { traders = h.buildActiveTraders(userID) })
+	go h.safeAggregate(&wg, func() { positions = h.buildRecentPositions(userID) })
+	go h.safeAggregate(&wg, func() { aiLat, exchLat = h.buildHealth(userID) })
 	wg.Wait()
 
 	status := "healthy"
@@ -199,11 +199,14 @@ func (h *DashboardHandler) safeAggregate(wg *sync.WaitGroup, fn func()) {
 
 // buildAccount 账户汇总：totalPnL/dailyPnL 来自已平仓记录；
 // totalBalance = 10_000 基准 + totalPnL（演示口径，见复盘）。
-func (h *DashboardHandler) buildAccount() dto.AccountSummary {
+func (h *DashboardHandler) buildAccount(userID string) dto.AccountSummary {
 	const baseBalance = 10000.0
 	var totalPnL, dailyPnL float64
 	now := time.Now().UTC()
 	for _, p := range h.store.ListPositions() {
+		if !h.ownedPosition(userID, p.TraderID) {
+			continue
+		}
 		if p.ClosedAt == nil {
 			continue
 		}
@@ -216,9 +219,9 @@ func (h *DashboardHandler) buildAccount() dto.AccountSummary {
 }
 
 // buildActiveTraders 运行中的前 5 个交易员。
-func (h *DashboardHandler) buildActiveTraders() []dto.TraderDTO {
+func (h *DashboardHandler) buildActiveTraders(userID string) []dto.TraderDTO {
 	out := make([]dto.TraderDTO, 0, 5)
-	for _, t := range h.store.ListTraders() {
+	for _, t := range h.store.ListTraders(userID) {
 		if t.Status != model.StatusRunning {
 			continue
 		}
@@ -231,9 +234,12 @@ func (h *DashboardHandler) buildActiveTraders() []dto.TraderDTO {
 }
 
 // buildRecentPositions 最新 5 条持仓（ListPositions 已按最新在前）。
-func (h *DashboardHandler) buildRecentPositions() []dto.PositionDTO {
+func (h *DashboardHandler) buildRecentPositions(userID string) []dto.PositionDTO {
 	out := make([]dto.PositionDTO, 0, 5)
 	for _, p := range h.store.ListPositions() {
+		if !h.ownedPosition(userID, p.TraderID) {
+			continue
+		}
 		out = append(out, positionToDTO(p))
 		if len(out) >= 5 {
 			break
@@ -242,10 +248,22 @@ func (h *DashboardHandler) buildRecentPositions() []dto.PositionDTO {
 	return out
 }
 
+// ownedPosition 持仓归属校验（trader 属主 == 当前用户；UserID 空放行）。
+func (h *DashboardHandler) ownedPosition(userID, traderID string) bool {
+	if userID == "" {
+		return true
+	}
+	t, ok := h.store.GetTrader(traderID)
+	if !ok {
+		return false
+	}
+	return t.UserID == "" || t.UserID == userID
+}
+
 // buildHealth 健康度：AI 延迟取模型最近测试延迟均值；交易所延迟当前阶段无连接源 -> -1。
-func (h *DashboardHandler) buildHealth() (aiLatency, exchangeLatency int64) {
+func (h *DashboardHandler) buildHealth(userID string) (aiLatency, exchangeLatency int64) {
 	var sum, count int64
-	for _, m := range h.store.ListModels() {
+	for _, m := range h.store.ListModels(userID) {
 		if m.LastTestAt != nil && m.LastTestLatencyMS > 0 {
 			sum += m.LastTestLatencyMS
 			count++

@@ -21,6 +21,9 @@ func (s *Store) CreateStrategy(st *model.Strategy) {
 	st.UpdatedAt = now
 	if s.db != nil {
 		s.db.Create(st)
+		s.mu.Lock()
+		s.strategies[st.ID] = st
+		s.mu.Unlock()
 		return
 	}
 	s.mu.Lock()
@@ -47,10 +50,14 @@ func (s *Store) GetStrategy(id string) (*model.Strategy, bool) {
 }
 
 // ListStrategies 列出全部策略（返回深拷贝副本切片）。
-func (s *Store) ListStrategies() []*model.Strategy {
+func (s *Store) ListStrategies(userID string) []*model.Strategy {
 	if s.db != nil {
 		var rows []model.Strategy
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.Strategy, 0, len(rows))
 		for i := range rows {
 			out = append(out, cloneStrategy(&rows[i]))
@@ -61,6 +68,9 @@ func (s *Store) ListStrategies() []*model.Strategy {
 	defer s.mu.RUnlock()
 	out := make([]*model.Strategy, 0, len(s.strategies))
 	for _, st := range s.strategies {
+		if userID != "" && st.UserID != userID {
+			continue
+		}
 		out = append(out, cloneStrategy(st))
 	}
 	return out
@@ -90,6 +100,10 @@ func (s *Store) UpdateStrategy(st *model.Strategy) {
 	st.UpdatedAt = time.Now().UTC()
 	if s.db != nil {
 		s.db.Save(st)
+		// 同步内存镜像（读优先 DB，镜像保持一致性防御）
+		s.mu.Lock()
+		s.strategies[st.ID] = st
+		s.mu.Unlock()
 		return
 	}
 	s.mu.Lock()
@@ -101,6 +115,11 @@ func (s *Store) UpdateStrategy(st *model.Strategy) {
 func (s *Store) DeleteStrategy(id string) bool {
 	if s.db != nil {
 		res := s.db.Delete(&model.Strategy{}, "id = ?", id)
+		if res.RowsAffected > 0 {
+			s.mu.Lock()
+			delete(s.strategies, id)
+			s.mu.Unlock()
+		}
 		return res.RowsAffected > 0
 	}
 	s.mu.Lock()
@@ -140,6 +159,17 @@ func (s *Store) ActivateStrategy(id string) (*model.Strategy, bool) {
 		if err != nil {
 			return nil, false
 		}
+		// 同步内存镜像（激活态唯一性在镜像中保持一致）
+		s.mu.Lock()
+		for _, st := range s.strategies {
+			st.IsActive = false
+			st.UpdatedAt = time.Now().UTC()
+		}
+		if cur, ok := s.strategies[id]; ok {
+			cur.IsActive = true
+			cur.UpdatedAt = time.Now().UTC()
+		}
+		s.mu.Unlock()
 		return out, true
 	}
 	s.mu.Lock()

@@ -105,12 +105,14 @@ type KlineDTO struct {
 
 // EquityPointDTO 权益点（GET /equity-history，§10 BacktestEquityPoint 同构）。
 type EquityPointDTO struct {
-	Timestamp   int64   `json:"timestamp"` // unix 秒
-	Equity      float64 `json:"equity"`
-	Balance     float64 `json:"balance,omitempty"`
-	PnL         float64 `json:"pnl,omitempty"`
-	PnLPct      float64 `json:"pnl_pct,omitempty"`
-	DrawdownPct float64 `json:"drawdown_pct,omitempty"`
+	Timestamp      int64   `json:"timestamp"` // unix 秒
+	Equity         float64 `json:"equity"`
+	Balance        float64 `json:"balance,omitempty"`
+	PnL            float64 `json:"pnl,omitempty"`
+	PnLPct         float64 `json:"pnl_pct,omitempty"`
+	DrawdownPct    float64 `json:"drawdown_pct,omitempty"`
+	MarginUsedPct  float64 `json:"margin_used_pct,omitempty"`  // 保证金占用（引擎实时）
+	PositionCount  int     `json:"position_count,omitempty"`
 }
 
 // EquityBatchRequest 批量权益查询（POST /equity-history-batch）。

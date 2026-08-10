@@ -25,7 +25,7 @@ func NewDataService(s *store.Store, klines provider.KlineProvider) *DataService 
 }
 
 // Status 运行状态。
-func (svc *DataService) Status(traderID string) dto.StatusDTO {
+func (svc *DataService) Status(traderID, userID string) dto.StatusDTO {
 	out := dto.StatusDTO{TraderID: traderID}
 	if t, ok := svc.store.GetTrader(traderID); ok {
 		out.IsRunning = t.Status == model.StatusRunning
@@ -34,9 +34,9 @@ func (svc *DataService) Status(traderID string) dto.StatusDTO {
 }
 
 // Account 账户信息：最新权益快照 + 当前持仓数聚合。
-func (svc *DataService) Account(traderID string) dto.AccountInfoDTO {
+func (svc *DataService) Account(traderID, userID string) dto.AccountInfoDTO {
 	out := dto.AccountInfoDTO{Currency: "USDT"}
-	equities := svc.store.ListEquityByTrader(traderID)
+	equities := svc.store.ListEquityByTrader(traderID, userID)
 	if n := len(equities); n > 0 {
 		last := equities[n-1]
 		out.TotalEquity = last.TotalEquity
@@ -49,24 +49,24 @@ func (svc *DataService) Account(traderID string) dto.AccountInfoDTO {
 }
 
 // Decisions 决策记录分页（最新在前）。
-func (svc *DataService) Decisions(traderID string, page, size int) ([]*model.DecisionRecord, int) {
-	total := svc.store.CountDecisions(traderID)
+func (svc *DataService) Decisions(traderID, userID string, page, size int) ([]*model.DecisionRecord, int) {
+	total := svc.store.CountDecisions(traderID, userID)
 	offset := (page - 1) * size
 	if offset > total {
 		offset = total
 	}
-	items := svc.store.ListDecisionsByTrader(traderID, offset, size)
+	items := svc.store.ListDecisionsByTrader(traderID, userID, offset, size)
 	return items, total
 }
 
 // LatestDecision 最近一轮决策。
-func (svc *DataService) LatestDecision(traderID string) (*model.DecisionRecord, bool) {
+func (svc *DataService) LatestDecision(traderID, userID string) (*model.DecisionRecord, bool) {
 	return svc.store.LatestDecisionByTrader(traderID)
 }
 
 // Statistics 交易统计：从平仓历史计算胜率/盈亏因子（store 平仓记录为准）。
-func (svc *DataService) Statistics(traderID string) dto.StatisticsDTO {
-	closed := svc.store.ListPositionHistory(traderID, "", 0, 100000)
+func (svc *DataService) Statistics(traderID, userID string) dto.StatisticsDTO {
+	closed := svc.store.ListPositionHistory(traderID, "", "", 0, 100000)
 	out := dto.StatisticsDTO{TotalTrades: len(closed)}
 	if len(closed) == 0 {
 		return out
@@ -100,8 +100,8 @@ func (svc *DataService) Statistics(traderID string) dto.StatisticsDTO {
 }
 
 // Trades 成交事件分页（fills 最新在前）。
-func (svc *DataService) Trades(traderID string, page, size int) []*model.Fill {
-	all := svc.store.ListFillsByTrader(traderID)
+func (svc *DataService) Trades(traderID, userID string, page, size int) []*model.Fill {
+	all := svc.store.ListFillsByTrader(traderID, userID)
 	start := (page - 1) * size
 	if start > len(all) {
 		start = len(all)
@@ -114,13 +114,13 @@ func (svc *DataService) Trades(traderID string, page, size int) []*model.Fill {
 }
 
 // CountTrades 成交总数。
-func (svc *DataService) CountTrades(traderID string) int {
-	return len(svc.store.ListFillsByTrader(traderID))
+func (svc *DataService) CountTrades(traderID, userID string) int {
+	return len(svc.store.ListFillsByTrader(traderID, userID))
 }
 
 // Orders 订单分页。
-func (svc *DataService) Orders(traderID string, page, size int) []*model.Order {
-	all := svc.store.ListOrders(traderID)
+func (svc *DataService) Orders(traderID, userID string, page, size int) []*model.Order {
+	all := svc.store.ListOrders(traderID, userID)
 	start := (page - 1) * size
 	if start > len(all) {
 		start = len(all)
@@ -133,8 +133,8 @@ func (svc *DataService) Orders(traderID string, page, size int) []*model.Order {
 }
 
 // CountOrders 订单总数。
-func (svc *DataService) CountOrders(traderID string) int {
-	return len(svc.store.ListOrders(traderID))
+func (svc *DataService) CountOrders(traderID, userID string) int {
+	return len(svc.store.ListOrders(traderID, userID))
 }
 
 // OrderFills 单笔订单的成交明细。
@@ -166,8 +166,8 @@ func (svc *DataService) Symbols() []string {
 }
 
 // EquityHistory 权益曲线（时间升序）。
-func (svc *DataService) EquityHistory(traderID string) []*model.EquitySnapshot {
-	return svc.store.ListEquityByTrader(traderID)
+func (svc *DataService) EquityHistory(traderID, userID string) []*model.EquitySnapshot {
+	return svc.store.ListEquityByTrader(traderID, userID)
 }
 
 // TraderPublicConfig 脱敏公开配置。

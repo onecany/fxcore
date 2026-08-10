@@ -27,10 +27,14 @@ func (s *Store) CreateBacktestRun(r *model.BacktestRun) {
 }
 
 // GetBacktestRun 按 run_id 查运行（返回副本）。
-func (s *Store) GetBacktestRun(runID string) (*model.BacktestRun, bool) {
+func (s *Store) GetBacktestRun(runID, userID string) (*model.BacktestRun, bool) {
 	if s.db != nil {
 		var r model.BacktestRun
-		if err := s.db.First(&r, "run_id = ?", runID).Error; err != nil {
+		q := s.db
+		if userID != "" {
+			q = q.Where("user_id = ? OR user_id = ''", userID)
+		}
+		if err := q.First(&r, "run_id = ?", runID).Error; err != nil {
 			return nil, false
 		}
 		return &r, true
@@ -41,15 +45,22 @@ func (s *Store) GetBacktestRun(runID string) (*model.BacktestRun, bool) {
 	if !ok {
 		return nil, false
 	}
+	if userID != "" && r.UserID != "" && r.UserID != userID {
+		return nil, false
+	}
 	cp := *r
 	return &cp, true
 }
 
 // ListBacktestRuns 列出全部运行（返回副本切片，最新在前）。
-func (s *Store) ListBacktestRuns() []*model.BacktestRun {
+func (s *Store) ListBacktestRuns(userID string) []*model.BacktestRun {
 	if s.db != nil {
 		var rows []model.BacktestRun
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.BacktestRun, 0, len(rows))
 		for i := range rows {
 			out = append(out, &rows[i])
@@ -60,6 +71,9 @@ func (s *Store) ListBacktestRuns() []*model.BacktestRun {
 	defer s.mu.RUnlock()
 	out := make([]*model.BacktestRun, 0, len(s.backtestRuns))
 	for _, r := range s.backtestRuns {
+		if userID != "" && r.UserID != "" && r.UserID != userID {
+			continue
+		}
 		cp := *r
 		out = append(out, &cp)
 	}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fxcore/internal/exchange"
+	"fxcore/internal/model"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/store"
 )
@@ -19,8 +20,8 @@ func NewCredentialsResolver(s *store.Store, km *crypto.KeyManager) *CredentialsR
 }
 
 // Resolve 按交易所类型取凭据（优先启用中的账户）。
-func (r *CredentialsResolver) Resolve(exchangeType string) (*exchange.Credentials, bool) {
-	for _, e := range r.store.ListExchanges() {
+func (r *CredentialsResolver) Resolve(exchangeType, userID string) (*exchange.Credentials, bool) {
+	for _, e := range r.store.ListExchanges(userID) {
 		if e.ExchangeType != exchangeType || !e.Enabled {
 			continue
 		}
@@ -48,6 +49,10 @@ func (r *CredentialsResolver) Resolve(exchangeType string) (*exchange.Credential
 		creds.APIKeyPrivateKey = decrypt(e.LighterAPIKeyPrivateKeyEnc)
 		if creds.PrivateKey == "" {
 			creds.PrivateKey = decrypt(e.LighterPrivateKeyEnc)
+		}
+		// hyperliquid 用独立私钥列（64 hex seed，L1 ed25519 签名）
+		if e.ExchangeType == model.ExchangeHyperliquid && creds.PrivateKey == "" {
+			creds.PrivateKey = decrypt(e.HyperliquidPrivateKeyEnc)
 		}
 		creds.APIKeyIndex = e.LighterAPIKeyIndex
 		if !ok {

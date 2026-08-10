@@ -92,9 +92,10 @@ func (e *Engine) orderSync(ctx context.Context, t *model.Trader) error {
 // 简化实现：开仓成交补录 OPEN 持仓（本地已存在则跳过）；平仓成交结算本地持仓。
 func (e *Engine) positionBuilder(traderID string, f exchange.Fill) {
 	open := e.store.ListPositionsByTrader(traderID)
-	side := "long"
+	// 成交方向的反向 = 待结算持仓方向：sell 平多 / buy 平空
+	side := "short"
 	if f.Side == "sell" {
-		side = "short"
+		side = "long"
 	}
 	// 平仓侧：find 同 symbol 的 OPEN 持仓（方向匹配）→ 结算
 	var matched *model.Position

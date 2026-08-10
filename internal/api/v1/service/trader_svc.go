@@ -43,7 +43,7 @@ var validExchanges = map[string]bool{
 }
 
 // Create 创建交易员（状态 idle）。
-func (svc *TraderService) Create(in *dto.CreateTraderRequest) (*model.Trader, *middleware.APIError) {
+func (svc *TraderService) Create(userID string, in *dto.CreateTraderRequest) (*model.Trader, *middleware.APIError) {
 	if !validExchanges[in.Exchange] {
 		return nil, middleware.BadRequest("unsupported exchange", map[string]string{"exchange": "must be one of binance,hyperliquid,aster,bybit,okx"})
 	}
@@ -57,6 +57,7 @@ func (svc *TraderService) Create(in *dto.CreateTraderRequest) (*model.Trader, *m
 		return nil, middleware.BadRequest("schedule.active_hours too many (max 24)", nil)
 	}
 	t := &model.Trader{
+		UserID: userID,
 		Name:        in.Name,
 		Exchange:    in.Exchange,
 		ModelConfig: model.ModelConfig{Provider: in.ModelConfig.Provider, ModelID: in.ModelConfig.ModelID, Parameters: in.ModelConfig.Parameters},
@@ -83,7 +84,7 @@ func (svc *TraderService) Create(in *dto.CreateTraderRequest) (*model.Trader, *m
 
 // Update PATCH 部分更新（指针字段区分未传/置空）。
 // L6：running 状态禁止修改配置（改后与引擎行为脱节）。
-func (svc *TraderService) Update(id string, in *dto.UpdateTraderRequest) (*model.Trader, *middleware.APIError) {
+func (svc *TraderService) Update(id, userID string, in *dto.UpdateTraderRequest) (*model.Trader, *middleware.APIError) {
 	// 锁外前置校验：WithTrader 回调持写锁，回调内调 GetModel 会写锁内取读锁死锁
 	if in.Exchange != nil && !validExchanges[*in.Exchange] {
 		return nil, middleware.BadRequest("unsupported exchange", nil)
@@ -101,6 +102,9 @@ func (svc *TraderService) Update(id string, in *dto.UpdateTraderRequest) (*model
 	}
 
 	updated, err := svc.store.WithTrader(id, func(t *model.Trader) error {
+		if userID != "" && t.UserID != "" && t.UserID != userID {
+			return store.ErrNotFound // 归属校验：他人交易员视同不存在
+		}
 		if t.Status == model.StatusRunning {
 			return errRunningCannotModify
 		}
@@ -140,23 +144,26 @@ func (svc *TraderService) Update(id string, in *dto.UpdateTraderRequest) (*model
 }
 
 // Get 单个交易员。
-func (svc *TraderService) Get(id string) (*model.Trader, *middleware.APIError) {
+func (svc *TraderService) Get(id, userID string) (*model.Trader, *middleware.APIError) {
 	t, ok := svc.store.GetTrader(id)
 	if !ok {
+		return nil, middleware.NotFound("trader not found")
+	}
+	if userID != "" && t.UserID != "" && t.UserID != userID {
 		return nil, middleware.NotFound("trader not found")
 	}
 	return t, nil
 }
 
 // List 全部交易员。
-func (svc *TraderService) List() []*model.Trader {
-	return svc.store.ListTraders()
+func (svc *TraderService) List(userID string) []*model.Trader {
+	return svc.store.ListTraders(userID)
 }
 
 // Start 启动（幂等：running 时 1204；非法迁移 1004）。
 // 状态迁移成功后挂载交易引擎；引擎启动失败回滚状态到 idle。
-func (svc *TraderService) Start(id string) *middleware.APIError {
-	if err := svc.transition(id, model.StatusRunning); err != nil {
+func (svc *TraderService) Start(id, userID string) *middleware.APIError {
+	if err := svc.transition(id, model.StatusRunning, userID); err != nil {
 		return err
 	}
 	if svc.engine != nil {
@@ -172,26 +179,32 @@ func (svc *TraderService) Start(id string) *middleware.APIError {
 }
 
 // Pause 暂停（仅 running→paused；引擎循环读 store 状态自动等待）。
-func (svc *TraderService) Pause(id string) *middleware.APIError {
-	return svc.transition(id, model.StatusPaused)
+func (svc *TraderService) Pause(id, userID string) *middleware.APIError {
+	return svc.transition(id, model.StatusPaused, userID)
 }
 
 // Resume 恢复（仅 paused→running）。
-func (svc *TraderService) Resume(id string) *middleware.APIError {
-	return svc.transition(id, model.StatusRunning)
+func (svc *TraderService) Resume(id, userID string) *middleware.APIError {
+	return svc.transition(id, model.StatusRunning, userID)
 }
 
 // Stop 停止（running|paused→stopped）。先停引擎（幂等）再迁移状态。
-func (svc *TraderService) Stop(id string) *middleware.APIError {
+func (svc *TraderService) Stop(id, userID string) *middleware.APIError {
+	if err := svc.transition(id, model.StatusStopped, userID); err != nil {
+		return err
+	}
 	if svc.engine != nil {
 		svc.engine.Stop(id)
 	}
-	return svc.transition(id, model.StatusStopped)
+	return nil
 }
 
-func (svc *TraderService) transition(id, to string) *middleware.APIError {
+func (svc *TraderService) transition(id, to, userID string) *middleware.APIError {
 	// WithTrader：锁内原子读-改-写，并发 start/pause 同一交易员不会互相踩踏
 	_, err := svc.store.WithTrader(id, func(t *model.Trader) error {
+		if userID != "" && t.UserID != "" && t.UserID != userID {
+			return store.ErrNotFound // 归属校验：他人交易员视同不存在
+		}
 		if t.Status == to {
 			if to == model.StatusRunning {
 				return errTraderRunning // 幂等：运行中重复 start -> 1204
@@ -229,14 +242,25 @@ var (
 )
 
 // ListPositions 持仓列表（支持 symbol 过滤）。
-func (svc *TraderService) ListPositions(symbol string) []*model.Position {
+func (svc *TraderService) ListPositions(userID, symbol string) []*model.Position {
 	all := svc.store.ListPositions()
-	if symbol == "" {
-		return all
-	}
+	owner := map[string]string{} // traderID -> userID（缓存）
 	out := make([]*model.Position, 0, len(all))
 	for _, p := range all {
-		if p.Symbol == symbol {
+		if userID != "" {
+			uid, ok := owner[p.TraderID]
+			if !ok {
+				if t, found := svc.store.GetTrader(p.TraderID); found {
+					uid = t.UserID
+				}
+				owner[p.TraderID] = uid
+			}
+			// 非本用户持仓跳过（uid 空 = 历史数据放行）
+			if uid != "" && uid != userID {
+				continue
+			}
+		}
+		if symbol == "" || p.Symbol == symbol {
 			out = append(out, p)
 		}
 	}
@@ -247,9 +271,15 @@ func (svc *TraderService) ListPositions(symbol string) []*model.Position {
 // L2：拒绝 NaN/Inf（非有限值会永久污染聚合指标）。
 // L1：胜率重算在写锁内完成（WithTraderAndPositions 提供锁内持仓快照），
 // 并发平仓不会基于过期快照互相覆盖（锁外算胜率已实测复现 WinRate 失真）。
-func (svc *TraderService) ClosePosition(id string, pnl float64) (*model.Position, *middleware.APIError) {
+func (svc *TraderService) ClosePosition(userID, id string, pnl float64) (*model.Position, *middleware.APIError) {
 	if math.IsNaN(pnl) || math.IsInf(pnl, 0) {
 		return nil, middleware.BadRequest("pnl must be a finite number", map[string]string{"pnl": "must be finite"})
+	}
+	// 归属校验：持仓所属 trader 必须属于当前用户（越权平仓拒绝）
+	if existing, found := svc.store.GetPosition(id); found {
+		if t, ok := svc.store.GetTrader(existing.TraderID); ok && userID != "" && t.UserID != "" && t.UserID != userID {
+			return nil, middleware.NotFound("position not found")
+		}
 	}
 	p, closed := svc.store.ClosePosition(id, pnl)
 	if !closed {

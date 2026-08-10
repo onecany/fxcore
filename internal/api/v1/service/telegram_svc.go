@@ -21,7 +21,7 @@ func NewTelegramService(s *store.Store, km *crypto.KeyManager) *TelegramService 
 }
 
 // Save 保存配置：bot_token RSA 加密 + 校验 model 存在；已绑定 chat 信息保留（单例 upsert）。
-func (svc *TelegramService) Save(in *dto.SaveTelegramRequest) *middleware.APIError {
+func (svc *TelegramService) Save(userID string, in *dto.SaveTelegramRequest) *middleware.APIError {
 	if _, ok := svc.store.GetModel(in.ModelID); !ok {
 		return middleware.NotFound("model not found")
 	}
@@ -34,18 +34,18 @@ func (svc *TelegramService) Save(in *dto.SaveTelegramRequest) *middleware.APIErr
 		ModelID:     in.ModelID,
 		ChatID:      in.ChatID,
 	}
-	svc.store.UpsertTelegramConfig(cfg)
+	svc.store.UpsertTelegramConfig(userID, cfg)
 	return nil
 }
 
 // Get 当前配置（token 脱敏在 handler 层）。
-func (svc *TelegramService) Get() (*model.TelegramConfig, bool) {
-	return svc.store.GetTelegramConfig()
+func (svc *TelegramService) Get(userID string) (*model.TelegramConfig, bool) {
+	return svc.store.GetTelegramConfig(userID)
 }
 
 // SetModel 仅换模型：保留 token 与绑定信息。
-func (svc *TelegramService) SetModel(in *dto.SetTelegramModelRequest) *middleware.APIError {
-	cur, ok := svc.store.GetTelegramConfig()
+func (svc *TelegramService) SetModel(userID string, in *dto.SetTelegramModelRequest) *middleware.APIError {
+	cur, ok := svc.store.GetTelegramConfig(userID)
 	if !ok {
 		return middleware.NotFound("telegram not configured")
 	}
@@ -60,13 +60,13 @@ func (svc *TelegramService) SetModel(in *dto.SetTelegramModelRequest) *middlewar
 		BoundAt:     cur.BoundAt,
 		Language:    cur.Language,
 	}
-	svc.store.UpsertTelegramConfig(cfg)
+	svc.store.UpsertTelegramConfig(userID, cfg)
 	return nil
 }
 
 // Delete 解绑：清空配置（含加密 token）。
-func (svc *TelegramService) Delete() {
-	svc.store.DeleteTelegramConfig()
+func (svc *TelegramService) Delete(userID string) {
+	svc.store.DeleteTelegramConfig(userID)
 }
 
 // DecryptToken 解密加密 token（handler 层做前缀脱敏用）。

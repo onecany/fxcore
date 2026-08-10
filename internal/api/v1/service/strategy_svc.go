@@ -68,7 +68,7 @@ func DefaultConfig() dto.StrategyConfig {
 }
 
 // Create 创建策略：config 缺省用系统默认，提供则按顶层 section 合并默认（§11）。
-func (svc *StrategyService) Create(in *dto.CreateStrategyRequest) (*model.Strategy, *middleware.APIError) {
+func (svc *StrategyService) Create(userID string, in *dto.CreateStrategyRequest) (*model.Strategy, *middleware.APIError) {
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
 		return nil, middleware.BadRequest("name is required", map[string]string{"name": "required"})
@@ -87,6 +87,7 @@ func (svc *StrategyService) Create(in *dto.CreateStrategyRequest) (*model.Strate
 		return nil, middleware.Internal("marshal strategy config failed")
 	}
 	st := &model.Strategy{
+		UserID: userID,
 		Name:        name,
 		Description: in.Description,
 		IsActive:    false,
@@ -103,9 +104,12 @@ func (svc *StrategyService) Create(in *dto.CreateStrategyRequest) (*model.Strate
 
 // Update 读-改-写工作流（§11）：现有 config 与请求字段按顶层 section 合并，
 // 未提及字段保留，不清零（与 nofx 部分合并语义一致）。
-func (svc *StrategyService) Update(id string, in *dto.UpdateStrategyRequest) (*model.Strategy, *middleware.APIError) {
+func (svc *StrategyService) Update(id, userID string, in *dto.UpdateStrategyRequest) (*model.Strategy, *middleware.APIError) {
 	st, ok := svc.store.GetStrategy(id)
 	if !ok {
+		return nil, middleware.NotFound("strategy not found")
+	}
+	if userID != "" && st.UserID != "" && st.UserID != userID {
 		return nil, middleware.NotFound("strategy not found")
 	}
 	cfg := DefaultConfig()
@@ -133,22 +137,29 @@ func (svc *StrategyService) Update(id string, in *dto.UpdateStrategyRequest) (*m
 }
 
 // List 全部策略。
-func (svc *StrategyService) List() []*model.Strategy {
-	return svc.store.ListStrategies()
+func (svc *StrategyService) List(userID string) []*model.Strategy {
+	return svc.store.ListStrategies(userID)
 }
 
 // Get 单个策略（含完整 config）。
-func (svc *StrategyService) Get(id string) (*model.Strategy, *middleware.APIError) {
+func (svc *StrategyService) Get(id, userID string) (*model.Strategy, *middleware.APIError) {
 	st, ok := svc.store.GetStrategy(id)
 	if !ok {
+		return nil, middleware.NotFound("strategy not found")
+	}
+	if userID != "" && st.UserID != "" && st.UserID != userID {
 		return nil, middleware.NotFound("strategy not found")
 	}
 	return st, nil
 }
 
 // Delete 删除策略；运行中交易员（running/paused）引用时拒绝（§11）。
-func (svc *StrategyService) Delete(id string) *middleware.APIError {
-	for _, t := range svc.store.ListTraders() {
+func (svc *StrategyService) Delete(id, userID string) *middleware.APIError {
+	st, ok := svc.store.GetStrategy(id)
+	if !ok || (userID != "" && st.UserID != userID) {
+		return middleware.NotFound("strategy not found")
+	}
+	for _, t := range svc.store.ListTraders("") { // 跨用户检查：任何用户的运行中交易员引用都拒绝
 		if t.StrategyID == id && (t.Status == model.StatusRunning || t.Status == model.StatusPaused) {
 			return middleware.NewAPIError(middleware.CodeTraderRunning, 409, "strategy is in use by a running trader")
 		}
@@ -159,22 +170,27 @@ func (svc *StrategyService) Delete(id string) *middleware.APIError {
 	return nil
 }
 
-// Activate 置为生效策略（is_active 全局唯一）。
-func (svc *StrategyService) Activate(id string) (*model.Strategy, *middleware.APIError) {
-	st, ok := svc.store.ActivateStrategy(id)
+// Activate 置为生效策略（is_active 全局唯一；归属校验：他人策略视同不存在）。
+func (svc *StrategyService) Activate(userID, id string) (*model.Strategy, *middleware.APIError) {
+	st, ok := svc.store.GetStrategy(id)
+	if !ok || (userID != "" && st.UserID != userID) {
+		return nil, middleware.NotFound("strategy not found")
+	}
+	activated, ok := svc.store.ActivateStrategy(id)
 	if !ok {
 		return nil, middleware.NotFound("strategy not found")
 	}
-	return st, nil
+	return activated, nil
 }
 
-// Duplicate 复制策略，名称加 "(copy)"（§11）。
-func (svc *StrategyService) Duplicate(id string) (*model.Strategy, *middleware.APIError) {
+// Duplicate 复制策略，名称加 "(copy)"（§11；归属校验：他人策略视同不存在，副本归属当前用户）。
+func (svc *StrategyService) Duplicate(userID, id string) (*model.Strategy, *middleware.APIError) {
 	src, ok := svc.store.GetStrategy(id)
-	if !ok {
+	if !ok || (userID != "" && src.UserID != "" && src.UserID != userID) {
 		return nil, middleware.NotFound("strategy not found")
 	}
 	cp := &model.Strategy{
+		UserID:      userID,
 		Name:        src.Name + " (copy)",
 		Description: src.Description,
 		IsActive:    false,

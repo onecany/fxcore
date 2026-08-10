@@ -145,17 +145,31 @@ type TraderDTO struct {
 
 // ========== 持仓模块 ==========
 
-// PositionDTO 持仓/平仓记录。
+// PositionDTO 持仓/平仓记录（§10/§15 全字段，对齐 model.Position）。
 type PositionDTO struct {
-	ID         string     `json:"id"`
-	Symbol     string     `json:"symbol"`
-	Side       string     `json:"side"` // long | short
-	Size       float64    `json:"size"`
-	EntryPrice float64    `json:"entry_price"`
-	PnL        float64    `json:"pnl"`
-	TraderID   string     `json:"trader_id"`
-	OpenedAt   time.Time  `json:"opened_at"`
-	ClosedAt   *time.Time `json:"closed_at,omitempty"`
+	ID             string     `json:"id"`
+	TraderID       string     `json:"trader_id"`
+	ExchangeID     string     `json:"exchange_id,omitempty"`
+	Symbol         string     `json:"symbol"`
+	Side           string     `json:"side"` // long | short
+	Size           float64    `json:"size"`
+	EntryPrice     float64    `json:"entry_price"`
+	PnL            float64    `json:"pnl"`
+	OpenedAt       time.Time  `json:"opened_at"`
+	ClosedAt       *time.Time `json:"closed_at,omitempty"`
+	EntryQuantity  float64    `json:"entry_quantity,omitempty"`
+	Quantity       float64    `json:"quantity,omitempty"`
+	MarkPrice      float64    `json:"mark_price,omitempty"`
+	UnrealizedPnL  float64    `json:"unrealized_pn_l,omitempty"`
+	Leverage       int        `json:"leverage,omitempty"`
+	Status         string     `json:"status,omitempty"` // OPEN | CLOSED
+	EntryTime      int64      `json:"entry_time,omitempty"`
+	ExitTime       int64      `json:"exit_time,omitempty"`
+	ExitPrice      float64    `json:"exit_price,omitempty"`
+	RealizedPnL    float64    `json:"realized_pn_l,omitempty"`
+	Fee            float64    `json:"fee,omitempty"`
+	CloseReason    string     `json:"close_reason,omitempty"`
+	Source         string     `json:"source,omitempty"`
 }
 
 // ========== 仪表盘模块 ==========

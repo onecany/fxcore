@@ -43,7 +43,7 @@ var ValidProviders = map[string]bool{
 }
 
 // Create 创建模型：API Key 用 RSA-OAEP 加密后落库（文档 6.2）。
-func (svc *ModelService) Create(in *dto.CreateModelRequest) (*model.AIModel, *middleware.APIError) {
+func (svc *ModelService) Create(userID string, in *dto.CreateModelRequest) (*model.AIModel, *middleware.APIError) {
 	if !ValidProviders[in.Provider] {
 		return nil, middleware.BadRequest("unsupported provider", map[string]string{"provider": "must be one of deepseek,qwen,claude,gpt,gemini,custom"})
 	}
@@ -52,6 +52,7 @@ func (svc *ModelService) Create(in *dto.CreateModelRequest) (*model.AIModel, *mi
 		return nil, middleware.NewAPIError(middleware.CodeAIFailed, http.StatusInternalServerError, "encrypt api key failed: "+err.Error())
 	}
 	m := &model.AIModel{
+		UserID: userID,
 		Name:         in.Name,
 		Provider:     in.Provider,
 		ModelName:    in.ModelName,
@@ -70,9 +71,12 @@ func (svc *ModelService) Create(in *dto.CreateModelRequest) (*model.AIModel, *mi
 }
 
 // Update 更新模型。检测到新 Key 时用当前公钥重新加密并记录 rotated_at（文档 6.2 Key 轮换）。
-func (svc *ModelService) Update(id string, in *dto.CreateModelRequest) (*model.AIModel, *middleware.APIError) {
+func (svc *ModelService) Update(id, userID string, in *dto.CreateModelRequest) (*model.AIModel, *middleware.APIError) {
 	m, ok := svc.store.GetModel(id)
 	if !ok {
+		return nil, middleware.NotFound("model not found")
+	}
+	if userID != "" && m.UserID != "" && m.UserID != userID {
 		return nil, middleware.NotFound("model not found")
 	}
 	if !ValidProviders[in.Provider] {
@@ -104,7 +108,11 @@ func (svc *ModelService) Update(id string, in *dto.CreateModelRequest) (*model.A
 }
 
 // Delete 软删除模型。
-func (svc *ModelService) Delete(id string) *middleware.APIError {
+func (svc *ModelService) Delete(id, userID string) *middleware.APIError {
+	m, ok := svc.store.GetModel(id)
+	if !ok || (userID != "" && m.UserID != "" && m.UserID != userID) {
+		return middleware.NotFound("model not found")
+	}
 	if !svc.store.DeleteModel(id) {
 		return middleware.NotFound("model not found")
 	}
@@ -112,14 +120,17 @@ func (svc *ModelService) Delete(id string) *middleware.APIError {
 }
 
 // List 全部未删除模型。
-func (svc *ModelService) List() []*model.AIModel {
-	return svc.store.ListModels()
+func (svc *ModelService) List(userID string) []*model.AIModel {
+	return svc.store.ListModels(userID)
 }
 
 // Get 单个模型。
-func (svc *ModelService) Get(id string) (*model.AIModel, *middleware.APIError) {
+func (svc *ModelService) Get(id, userID string) (*model.AIModel, *middleware.APIError) {
 	m, ok := svc.store.GetModel(id)
 	if !ok {
+		return nil, middleware.NotFound("model not found")
+	}
+	if userID != "" && m.UserID != "" && m.UserID != userID {
 		return nil, middleware.NotFound("model not found")
 	}
 	return m, nil

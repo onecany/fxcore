@@ -100,7 +100,7 @@ func TestFilterByRisk(t *testing.T) {
 // mockCreds 测试凭据解析器。
 type mockCreds struct{}
 
-func (m *mockCreds) Resolve(exchangeType string) (*exchange.Credentials, bool) {
+func (m *mockCreds) Resolve(exchangeType, userID string) (*exchange.Credentials, bool) {
 	return &exchange.Credentials{ExchangeType: "mock"}, true
 }
 
@@ -160,7 +160,7 @@ func TestOrderSyncIdempotent(t *testing.T) {
 	if added2 {
 		t.Errorf("second add should be deduped (same exchange_trade_id)")
 	}
-	if len(st.ListFillsByTrader("t1")) != 1 {
+	if len(st.ListFillsByTrader("t1", "")) != 1 {
 		t.Errorf("fill count should be 1 after dedup")
 	}
 	// 同 order 幂等

@@ -31,7 +31,7 @@ func NewDebateHandler(engine *debate.Engine) *DebateHandler {
 // @Success 200 {object} dto.ApiResponse[[]dto.DebateSessionDTO]
 // @Router /debates [get]
 func (h *DebateHandler) List(c *gin.Context) {
-	sessions := h.engine.List()
+	sessions := h.engine.List(currentUserID(c))
 	out := make([]dto.DebateSessionDTO, 0, len(sessions))
 	for _, s := range sessions {
 		out = append(out, debateSessionToDTO(s))
@@ -66,7 +66,7 @@ func (h *DebateHandler) Create(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	sess, apiErr := h.engine.Create(req)
+	sess, apiErr := h.engine.Create(currentUserID(c), req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -84,7 +84,7 @@ func (h *DebateHandler) Create(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 会话不存在"
 // @Router /debates/{id} [get]
 func (h *DebateHandler) Get(c *gin.Context) {
-	detail, apiErr := h.engine.Get(c.Param("id"))
+	detail, apiErr := h.engine.Get(c.Param("id"), currentUserID(c))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -107,9 +107,9 @@ func (h *DebateHandler) Control(c *gin.Context) {
 	var apiErr *middleware.APIError
 	switch c.Param("action") {
 	case "start":
-		apiErr = h.engine.Start(id)
+		apiErr = h.engine.Start(currentUserID(c), id)
 	case "cancel":
-		apiErr = h.engine.Cancel(id)
+		apiErr = h.engine.Cancel(currentUserID(c), id)
 	default:
 		middleware.WriteError(c, middleware.BadRequest("invalid action", map[string]string{"action": "start|cancel"}))
 		return
@@ -138,6 +138,10 @@ func (h *DebateHandler) Execute(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
+	if _, apiErr := h.engine.Get(c.Param("id"), currentUserID(c)); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
 	if apiErr := h.engine.Execute(c.Param("id"), req.TraderID); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -155,6 +159,10 @@ func (h *DebateHandler) Execute(c *gin.Context) {
 // @Failure 400 {object} dto.ErrorResponse "1001 活跃会话不可删"
 // @Router /debates/{id} [delete]
 func (h *DebateHandler) Delete(c *gin.Context) {
+	if _, apiErr := h.engine.Get(c.Param("id"), currentUserID(c)); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
 	if apiErr := h.engine.Delete(c.Param("id")); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -171,6 +179,10 @@ func (h *DebateHandler) Delete(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.DebateMessageDTO]
 // @Router /debates/{id}/messages [get]
 func (h *DebateHandler) Messages(c *gin.Context) {
+	if _, apiErr := h.engine.Get(c.Param("id"), currentUserID(c)); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
 	msgs, apiErr := h.engine.Messages(c.Param("id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -192,6 +204,10 @@ func (h *DebateHandler) Messages(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.DebateVoteDTO]
 // @Router /debates/{id}/votes [get]
 func (h *DebateHandler) Votes(c *gin.Context) {
+	if _, apiErr := h.engine.Get(c.Param("id"), currentUserID(c)); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
 	votes, apiErr := h.engine.Votes(c.Param("id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -214,6 +230,11 @@ func (h *DebateHandler) Votes(c *gin.Context) {
 // @Router /debates/{id}/stream [get]
 func (h *DebateHandler) Stream(c *gin.Context) {
 	id := c.Param("id")
+	// 先校验归属再订阅：非属主订阅后 initial 404 但 SSE 继续推流（P0-2）
+	if _, apiErr := h.engine.Get(id, currentUserID(c)); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
 	ch, unsub, apiErr := h.engine.Subscribe(id)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -226,7 +247,7 @@ func (h *DebateHandler) Stream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 
 	// initial：当前会话快照
-	if detail, err := h.engine.Get(id); err == nil {
+	if detail, err := h.engine.Get(id, currentUserID(c)); err == nil {
 		writeSSE(c, "initial", detail)
 	}
 

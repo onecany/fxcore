@@ -36,13 +36,13 @@ type Store struct {
 	positions  []*model.Position // 追加序，最新在末尾
 	posSeq     int64
 	// ---- §10-§15 扩展实体 ----
-	exchanges  map[string]*model.Exchange // by id
-	strategies map[string]*model.Strategy // by id
-	telegram   *model.TelegramConfig      // 单用户单例
-	orders     []*model.Order             // 追加序，最新在末尾
-	fills      []*model.Fill              // 追加序，最新在末尾
-	decisions  []*model.DecisionRecord    // 追加序，最新在末尾
-	equities   []*model.EquitySnapshot    // 追加序，最新在末尾
+	exchanges  map[string]*model.Exchange       // by id
+	strategies map[string]*model.Strategy       // by id
+	telegram   map[string]*model.TelegramConfig // per-user（多用户隔离）
+	orders     []*model.Order                   // 追加序，最新在末尾
+	fills      []*model.Fill                    // 追加序，最新在末尾
+	decisions  []*model.DecisionRecord          // 追加序，最新在末尾
+	equities   []*model.EquitySnapshot          // 追加序，最新在末尾
 	// ---- 回测 ----
 	backtestRuns        map[string]*model.BacktestRun
 	backtestEquities    []*model.BacktestEquity
@@ -67,19 +67,20 @@ type Config struct {
 // db 非 nil 时管理实体走 GORM（SQLite/MariaDB），nil 时纯内存（测试）。
 func New(cfg Config, db *gorm.DB) (*Store, error) {
 	s := &Store{
-		db:           db,
-		users:        make(map[string]*model.User),
-		emailIndex:   make(map[string]string),
-		models:       make(map[string]*model.AIModel),
-		traders:      make(map[string]*model.Trader),
-		positions:    make([]*model.Position, 0, 16),
-		exchanges:    make(map[string]*model.Exchange),
-		strategies:   make(map[string]*model.Strategy),
-		orders:       make([]*model.Order, 0, 16),
-		fills:        make([]*model.Fill, 0, 16),
-		decisions:    make([]*model.DecisionRecord, 0, 16),
-		equities:     make([]*model.EquitySnapshot, 0, 16),
-		backtestRuns: make(map[string]*model.BacktestRun),
+		db:                  db,
+		users:               make(map[string]*model.User),
+		emailIndex:          make(map[string]string),
+		models:              make(map[string]*model.AIModel),
+		traders:             make(map[string]*model.Trader),
+		telegram:            make(map[string]*model.TelegramConfig),
+		positions:           make([]*model.Position, 0, 16),
+		exchanges:           make(map[string]*model.Exchange),
+		strategies:          make(map[string]*model.Strategy),
+		orders:              make([]*model.Order, 0, 16),
+		fills:               make([]*model.Fill, 0, 16),
+		decisions:           make([]*model.DecisionRecord, 0, 16),
+		equities:            make([]*model.EquitySnapshot, 0, 16),
+		backtestRuns:        make(map[string]*model.BacktestRun),
 		backtestEquities:    make([]*model.BacktestEquity, 0, 16),
 		backtestTrades:      make([]*model.BacktestTrade, 0, 16),
 		backtestDecisions:   make([]*model.BacktestDecision, 0, 16),
@@ -95,6 +96,11 @@ func New(cfg Config, db *gorm.DB) (*Store, error) {
 	return s, nil
 }
 
+// NewSignSecret 生成随机签名密钥（HMAC-SHA256 user_secret，128 bit）。
+func NewSignSecret() string {
+	return newID() + newID()
+}
+
 func (s *Store) seedAdmin(cfg Config) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
@@ -104,6 +110,7 @@ func (s *Store) seedAdmin(cfg Config) error {
 	if secret == "" {
 		secret = newID()
 	}
+	_ = secret // seedAdmin 内联使用
 	now := time.Now().UTC()
 	u := &model.User{
 		ID:           newID(),
@@ -122,6 +129,12 @@ func (s *Store) seedAdmin(cfg Config) error {
 			if err := s.db.Create(u).Error; err != nil {
 				return err
 			}
+		} else {
+			// 已存在：读真实行同步内存（避免塞入随机新 ID 的脏对象，P2-8）
+			var existing model.User
+			if err := s.db.Where("email = ?", cfg.AdminEmail).First(&existing).Error; err == nil {
+				u = &existing
+			}
 		}
 		// 同步内存索引（保证 GetUserByEmail 之外的直接索引路径一致）
 		s.mu.Lock()
@@ -136,6 +149,40 @@ func (s *Store) seedAdmin(cfg Config) error {
 }
 
 // ========== 用户 ==========
+
+// ErrEmailTaken 邮箱已注册（register 幂等冲突）。
+var ErrEmailTaken = errors.New("email already taken")
+
+// CreateUser 创建用户（email 唯一：DB unique 索引 / 内存 emailIndex 双保险）。
+func (s *Store) CreateUser(u *model.User) error {
+	if u.ID == "" {
+		u.ID = newID()
+	}
+	now := time.Now().UTC()
+	u.CreatedAt = now
+	u.UpdatedAt = now
+	if s.db != nil {
+		if err := s.db.Create(u).Error; err != nil {
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ErrEmailTaken
+			}
+			return err
+		}
+		s.mu.Lock()
+		s.users[u.ID] = u
+		s.emailIndex[u.Email] = u.ID
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.emailIndex[u.Email]; ok {
+		return ErrEmailTaken
+	}
+	s.users[u.ID] = u
+	s.emailIndex[u.Email] = u.ID
+	return nil
+}
 
 // GetUserByEmail 按邮箱查用户（返回副本）。
 func (s *Store) GetUserByEmail(email string) (*model.User, bool) {
@@ -220,10 +267,14 @@ func (s *Store) GetModel(id string) (*model.AIModel, bool) {
 }
 
 // ListModels 列出全部未删除模型（返回副本切片）。
-func (s *Store) ListModels() []*model.AIModel {
+func (s *Store) ListModels(userID string) []*model.AIModel {
 	if s.db != nil {
 		var rows []model.AIModel
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.AIModel, 0, len(rows))
 		for i := range rows {
 			out = append(out, &rows[i])
@@ -234,7 +285,7 @@ func (s *Store) ListModels() []*model.AIModel {
 	defer s.mu.RUnlock()
 	out := make([]*model.AIModel, 0, len(s.models))
 	for _, m := range s.models {
-		if m.DeletedAt == nil {
+		if m.DeletedAt == nil && (userID == "" || m.UserID == userID) {
 			cp := *m
 			out = append(out, &cp)
 		}
@@ -325,10 +376,14 @@ func (s *Store) GetTrader(id string) (*model.Trader, bool) {
 }
 
 // ListTraders 列出全部交易员（返回深拷贝副本切片）。
-func (s *Store) ListTraders() []*model.Trader {
+func (s *Store) ListTraders(userID string) []*model.Trader {
 	if s.db != nil {
 		var rows []model.Trader
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.Trader, 0, len(rows))
 		for i := range rows {
 			out = append(out, cloneTrader(&rows[i]))
@@ -339,6 +394,9 @@ func (s *Store) ListTraders() []*model.Trader {
 	defer s.mu.RUnlock()
 	out := make([]*model.Trader, 0, len(s.traders))
 	for _, t := range s.traders {
+		if userID != "" && t.UserID != userID {
+			continue
+		}
 		out = append(out, cloneTrader(t))
 	}
 	return out
@@ -641,11 +699,13 @@ func (s *Store) ListPositionsByTrader(traderID string) []*model.Position {
 
 // ListPositionHistory 平仓历史（返回副本切片，最新在前，分页）。
 // symbol 可选过滤；traderID 为空则返回全部。
-func (s *Store) ListPositionHistory(traderID, symbol string, offset, limit int) []*model.Position {
+func (s *Store) ListPositionHistory(traderID, userID, symbol string, offset, limit int) []*model.Position {
 	if s.db != nil {
 		q := s.db.Where("closed_at IS NOT NULL")
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		if symbol != "" {
 			q = q.Where("symbol = ?", symbol)
@@ -660,6 +720,7 @@ func (s *Store) ListPositionHistory(traderID, symbol string, offset, limit int) 
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	out := make([]*model.Position, 0, 16)
 	for i := len(s.positions) - 1; i >= 0; i-- {
 		p := s.positions[i]
@@ -668,6 +729,18 @@ func (s *Store) ListPositionHistory(traderID, symbol string, offset, limit int) 
 		}
 		if traderID != "" && p.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[p.TraderID]
+			if !ok {
+				if t, found := s.traders[p.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[p.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		if symbol != "" && p.Symbol != symbol {
 			continue
@@ -686,11 +759,13 @@ func (s *Store) ListPositionHistory(traderID, symbol string, offset, limit int) 
 }
 
 // CountPositionHistory 平仓历史条数。
-func (s *Store) CountPositionHistory(traderID, symbol string) int {
+func (s *Store) CountPositionHistory(traderID, userID, symbol string) int {
 	if s.db != nil {
 		q := s.db.Model(&model.Position{}).Where("closed_at IS NOT NULL")
 		if traderID != "" {
 			q = q.Where("trader_id = ?", traderID)
+		} else if userID != "" {
+			q = q.Where("trader_id IN (SELECT id FROM traders WHERE user_id = ?)", userID)
 		}
 		if symbol != "" {
 			q = q.Where("symbol = ?", symbol)
@@ -701,6 +776,7 @@ func (s *Store) CountPositionHistory(traderID, symbol string) int {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	owner := map[string]string{}
 	n := 0
 	for _, p := range s.positions {
 		if p.ClosedAt == nil {
@@ -708,6 +784,18 @@ func (s *Store) CountPositionHistory(traderID, symbol string) int {
 		}
 		if traderID != "" && p.TraderID != traderID {
 			continue
+		}
+		if traderID == "" && userID != "" {
+			uid, ok := owner[p.TraderID]
+			if !ok {
+				if t, found := s.traders[p.TraderID]; found {
+					uid = t.UserID
+				}
+				owner[p.TraderID] = uid
+			}
+			if uid != "" && uid != userID {
+				continue
+			}
 		}
 		if symbol != "" && p.Symbol != symbol {
 			continue

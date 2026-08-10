@@ -36,7 +36,7 @@ func (h *ExchangeHandler) List(c *gin.Context) {
 		return
 	}
 	fields := splitFields(q.Fields)
-	list := h.svc.List()
+	list := h.svc.List(currentUserID(c))
 	out := make([]dto.ExchangeDTO, 0, len(list))
 	for _, e := range list {
 		out = append(out, exchangeToDTO(e))
@@ -70,7 +70,7 @@ func (h *ExchangeHandler) Create(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	e, apiErr := h.svc.Create(&req)
+	e, apiErr := h.svc.Create(currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -97,7 +97,7 @@ func (h *ExchangeHandler) Update(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	e, apiErr := h.svc.Update(c.Param("id"), &req)
+	e, apiErr := h.svc.Update(c.Param("id"), currentUserID(c), &req)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
@@ -115,7 +115,7 @@ func (h *ExchangeHandler) Update(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 交易所不存在"
 // @Router /exchanges/{id} [delete]
 func (h *ExchangeHandler) Delete(c *gin.Context) {
-	if apiErr := h.svc.Delete(c.Param("id")); apiErr != nil {
+	if apiErr := h.svc.Delete(c.Param("id"), currentUserID(c)); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}

@@ -9,16 +9,31 @@ import (
 	"fxcore/internal/api/v1/service"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
+	"fxcore/internal/store"
 )
 
 // DataHandler 数据/市场只读端点（API设计.md §11 data + market 路由）。
 type DataHandler struct {
-	svc *service.DataService
+	svc   *service.DataService
+	store *store.Store // trader 归属校验（多用户隔离）
 }
 
 // NewDataHandler 构造数据处理 handler。
-func NewDataHandler(svc *service.DataService) *DataHandler {
-	return &DataHandler{svc: svc}
+func NewDataHandler(svc *service.DataService, st *store.Store) *DataHandler {
+	return &DataHandler{svc: svc, store: st}
+}
+
+// authorizeTrader 校验 trader 归属当前用户（多用户隔离：未归属返回 false）。
+// traderID 为空（不限交易员）时放行（聚合视图）。
+func (h *DataHandler) authorizeTrader(c *gin.Context, traderID string) bool {
+	if traderID == "" {
+		return true
+	}
+	t, ok := h.store.GetTrader(traderID)
+	if !ok {
+		return false
+	}
+	return t.UserID == "" || t.UserID == currentUserID(c)
 }
 
 // Status GET /status?trader_id=
@@ -30,7 +45,12 @@ func NewDataHandler(svc *service.DataService) *DataHandler {
 // @Success 200 {object} dto.ApiResponse[dto.StatusDTO]
 // @Router /status [get]
 func (h *DataHandler) Status(c *gin.Context) {
-	middleware.WriteOK(c, h.svc.Status(c.Query("trader_id")))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	middleware.WriteOK(c, h.svc.Status(_tid, currentUserID(c)))
 }
 
 // Account GET /account?trader_id=
@@ -42,7 +62,12 @@ func (h *DataHandler) Status(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[dto.AccountInfoDTO]
 // @Router /account [get]
 func (h *DataHandler) Account(c *gin.Context) {
-	middleware.WriteOK(c, h.svc.Account(c.Query("trader_id")))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	middleware.WriteOK(c, h.svc.Account(_tid, currentUserID(c)))
 }
 
 // Decisions GET /decisions?trader_id=&page=&size=
@@ -63,7 +88,11 @@ func (h *DataHandler) Decisions(c *gin.Context) {
 	}
 	page, size := q.Normalized()
 	traderID := c.Query("trader_id")
-	items, total := h.svc.Decisions(traderID, page, size)
+	if !h.authorizeTrader(c, traderID) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	items, total := h.svc.Decisions(traderID, currentUserID(c), page, size)
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
 		totalPages = 1
@@ -85,7 +114,12 @@ func (h *DataHandler) Decisions(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 无决策记录"
 // @Router /decisions/latest [get]
 func (h *DataHandler) LatestDecision(c *gin.Context) {
-	d, ok := h.svc.LatestDecision(c.Query("trader_id"))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	d, ok := h.svc.LatestDecision(_tid, currentUserID(c))
 	if !ok {
 		middleware.WriteError(c, middleware.NotFound("no decision record"))
 		return
@@ -102,7 +136,12 @@ func (h *DataHandler) LatestDecision(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[dto.StatisticsDTO]
 // @Router /statistics [get]
 func (h *DataHandler) Statistics(c *gin.Context) {
-	middleware.WriteOK(c, h.svc.Statistics(c.Query("trader_id")))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	middleware.WriteOK(c, h.svc.Statistics(_tid, currentUserID(c)))
 }
 
 // Trades GET /trades?trader_id=&page=&size=
@@ -123,8 +162,12 @@ func (h *DataHandler) Trades(c *gin.Context) {
 	}
 	page, size := q.Normalized()
 	traderID := c.Query("trader_id")
-	items := h.svc.Trades(traderID, page, size)
-	total := h.svc.CountTrades(traderID)
+	if !h.authorizeTrader(c, traderID) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	items := h.svc.Trades(traderID, currentUserID(c), page, size)
+	total := h.svc.CountTrades(traderID, currentUserID(c))
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
 		totalPages = 1
@@ -154,8 +197,12 @@ func (h *DataHandler) Orders(c *gin.Context) {
 	}
 	page, size := q.Normalized()
 	traderID := c.Query("trader_id")
-	items := h.svc.Orders(traderID, page, size)
-	total := h.svc.CountOrders(traderID)
+	if !h.authorizeTrader(c, traderID) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	items := h.svc.Orders(traderID, currentUserID(c), page, size)
+	total := h.svc.CountOrders(traderID, currentUserID(c))
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
 		totalPages = 1
@@ -176,6 +223,12 @@ func (h *DataHandler) Orders(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.FillDTO]
 // @Router /orders/{id}/fills [get]
 func (h *DataHandler) OrderFills(c *gin.Context) {
+	// 归属校验：order → trader → user（P2-10）
+	order, ok := h.svc.Store().GetOrder(c.Param("id"))
+	if ok && !h.authorizeTrader(c, order.TraderID) {
+		middleware.WriteError(c, middleware.NotFound("order not found"))
+		return
+	}
 	fills := h.svc.OrderFills(c.Param("id"))
 	out := make([]dto.FillDTO, 0, len(fills))
 	for _, f := range fills {
@@ -193,7 +246,12 @@ func (h *DataHandler) OrderFills(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.OrderDTO]
 // @Router /open-orders [get]
 func (h *DataHandler) OpenOrders(c *gin.Context) {
-	orders := h.svc.OpenOrders(c.Query("trader_id"))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	orders := h.svc.OpenOrders(_tid)
 	out := make([]dto.OrderDTO, 0, len(orders))
 	for _, o := range orders {
 		out = append(out, orderToDTO(o))
@@ -262,8 +320,12 @@ func (h *DataHandler) PositionHistory(c *gin.Context) {
 	}
 	page, size := q.Normalized()
 	traderID := c.Query("trader_id")
-	items := h.svc.Store().ListPositionHistory(traderID, q.Symbol, (page-1)*size, size)
-	total := h.svc.Store().CountPositionHistory(traderID, q.Symbol)
+	if !h.authorizeTrader(c, traderID) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	items := h.svc.Store().ListPositionHistory(traderID, currentUserID(c), q.Symbol, (page-1)*size, size)
+	total := h.svc.Store().CountPositionHistory(traderID, currentUserID(c), q.Symbol)
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
 		totalPages = 1
@@ -284,7 +346,12 @@ func (h *DataHandler) PositionHistory(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.EquityPointDTO]
 // @Router /equity-history [get]
 func (h *DataHandler) EquityHistory(c *gin.Context) {
-	snapshots := h.svc.EquityHistory(c.Query("trader_id"))
+	_tid := c.Query("trader_id")
+	if !h.authorizeTrader(c, _tid) {
+		middleware.WriteError(c, middleware.NotFound("trader not found"))
+		return
+	}
+	snapshots := h.svc.EquityHistory(_tid, currentUserID(c))
 	out := make([]dto.EquityPointDTO, 0, len(snapshots))
 	for _, e := range snapshots {
 		out = append(out, equityToDTO(e))
@@ -309,7 +376,12 @@ func (h *DataHandler) EquityHistoryBatch(c *gin.Context) {
 	}
 	out := make([][]dto.EquityPointDTO, 0, len(req.TraderIDs))
 	for _, id := range req.TraderIDs {
-		snapshots := h.svc.EquityHistory(id)
+		// 归属校验：trader_id 空时由 svc 按 user 过滤；非空必须属主（P1-4）
+		if !h.authorizeTrader(c, id) {
+			middleware.WriteError(c, middleware.NotFound("trader not found"))
+			return
+		}
+		snapshots := h.svc.EquityHistory(id, currentUserID(c))
 		pts := make([]dto.EquityPointDTO, 0, len(snapshots))
 		for _, e := range snapshots {
 			pts = append(pts, equityToDTO(e))
@@ -434,10 +506,11 @@ func orderToDTO(o *model.Order) dto.OrderDTO {
 
 func equityToDTO(e *model.EquitySnapshot) dto.EquityPointDTO {
 	return dto.EquityPointDTO{
-		Timestamp:   e.Timestamp.Unix(),
-		Equity:      e.TotalEquity,
-		Balance:     e.Balance,
-		PnL:         e.UnrealizedPnL,
-		DrawdownPct: e.MarginUsedPct,
+		Timestamp:     e.Timestamp.Unix(),
+		Equity:        e.TotalEquity,
+		Balance:       e.Balance,
+		PnL:           e.UnrealizedPnL,
+		MarginUsedPct: e.MarginUsedPct,
+		PositionCount: e.PositionCount,
 	}
 }

@@ -49,7 +49,7 @@ func TestConcurrentStartOnlyOneSucceeds(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			errs[i] = svc.Start("t1")
+			errs[i] = svc.Start("t1", "u1")
 		}(i)
 	}
 	wg.Wait()
@@ -90,9 +90,9 @@ func TestConcurrentStopStartNoRace(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			if i%2 == 0 {
-				_ = svc.Start("t2")
+				_ = svc.Start("t2", "u1")
 			} else {
-				_ = svc.Stop("t2")
+				_ = svc.Stop("t2", "u1")
 			}
 		}(i)
 	}
@@ -110,25 +110,25 @@ func TestTransitionRules(t *testing.T) {
 	seedTrader(t, s, "t3")
 	svc := NewTraderService(s, nil)
 
-	if e := svc.Pause("t3"); e == nil || e.Code != middleware.CodeNotFound {
+	if e := svc.Pause("t3", "u1"); e == nil || e.Code != middleware.CodeNotFound {
 		t.Fatalf("idle->paused should be 1004, got %+v", e)
 	}
-	if e := svc.Start("t3"); e != nil {
+	if e := svc.Start("t3", "u1"); e != nil {
 		t.Fatalf("idle->running should succeed, got %+v", e)
 	}
-	if e := svc.Start("t3"); e == nil || e.Code != middleware.CodeTraderRunning {
+	if e := svc.Start("t3", "u1"); e == nil || e.Code != middleware.CodeTraderRunning {
 		t.Fatalf("running->running start should be 1204, got %+v", e)
 	}
-	if e := svc.Pause("t3"); e != nil {
+	if e := svc.Pause("t3", "u1"); e != nil {
 		t.Fatalf("running->paused should succeed, got %+v", e)
 	}
-	if e := svc.Start("t3"); e != nil {
+	if e := svc.Start("t3", "u1"); e != nil {
 		t.Fatalf("paused start should succeed (restart semantics), got %+v", e)
 	}
-	if e := svc.Stop("t3"); e != nil {
+	if e := svc.Stop("t3", "u1"); e != nil {
 		t.Fatalf("running->stopped should succeed, got %+v", e)
 	}
-	if e := svc.Start("t3"); e != nil {
+	if e := svc.Start("t3", "u1"); e != nil {
 		t.Fatalf("stopped->running restart should succeed, got %+v", e)
 	}
 }
@@ -165,7 +165,7 @@ func TestConcurrentClosePositionsWinRate(t *testing.T) {
 		wg.Add(1)
 		go func(i int, id string, pnl float64) {
 			defer wg.Done()
-			_, errs[i] = svc.ClosePosition(id, pnl)
+			_, errs[i] = svc.ClosePosition("u1", id, pnl)
 		}(i, p.ID, float64(i)*2-1) // p0: -1, p1: +1
 	}
 	wg.Wait()
@@ -195,13 +195,13 @@ func TestClosePositionRejectsNaN(t *testing.T) {
 	s.AddPosition(&model.Position{Symbol: "BTC-USDT", Side: "long", Size: 1, EntryPrice: 100, TraderID: "t6"})
 	p := s.ListPositions()[0]
 
-	if _, e := svc.ClosePosition(p.ID, math.NaN()); e == nil || e.Code != middleware.CodeBadRequest {
+	if _, e := svc.ClosePosition("u1", p.ID, math.NaN()); e == nil || e.Code != middleware.CodeBadRequest {
 		t.Fatalf("NaN pnl should be 1001, got %+v", e)
 	}
-	if _, e := svc.ClosePosition(p.ID, math.Inf(1)); e == nil || e.Code != middleware.CodeBadRequest {
+	if _, e := svc.ClosePosition("u1", p.ID, math.Inf(1)); e == nil || e.Code != middleware.CodeBadRequest {
 		t.Fatalf("+Inf pnl should be 1001, got %+v", e)
 	}
-	if _, e := svc.ClosePosition(p.ID, math.Inf(-1)); e == nil || e.Code != middleware.CodeBadRequest {
+	if _, e := svc.ClosePosition("u1", p.ID, math.Inf(-1)); e == nil || e.Code != middleware.CodeBadRequest {
 		t.Fatalf("-Inf pnl should be 1001, got %+v", e)
 	}
 }
@@ -211,17 +211,17 @@ func TestUpdateRejectedWhileRunning(t *testing.T) {
 	s := newTestStore(t)
 	seedTrader(t, s, "t7")
 	svc := NewTraderService(s, nil)
-	if e := svc.Start("t7"); e != nil {
+	if e := svc.Start("t7", "u1"); e != nil {
 		t.Fatalf("start failed: %+v", e)
 	}
 	newName := "renamed"
-	if _, e := svc.Update("t7", &dto.UpdateTraderRequest{Name: &newName}); e == nil || e.Code != middleware.CodeBadRequest {
+	if _, e := svc.Update("t7", "u1", &dto.UpdateTraderRequest{Name: &newName}); e == nil || e.Code != middleware.CodeBadRequest {
 		t.Fatalf("update while running should be 1001, got %+v", e)
 	}
-	if e := svc.Stop("t7"); e != nil {
+	if e := svc.Stop("t7", "u1"); e != nil {
 		t.Fatalf("stop failed: %+v", e)
 	}
-	if _, e := svc.Update("t7", &dto.UpdateTraderRequest{Name: &newName}); e != nil {
+	if _, e := svc.Update("t7", "u1", &dto.UpdateTraderRequest{Name: &newName}); e != nil {
 		t.Fatalf("update after stop should succeed, got %+v", e)
 	}
 }

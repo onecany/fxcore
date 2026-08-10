@@ -55,8 +55,8 @@ func TestPersistentCRUD(t *testing.T) {
 	if ex2, ok := s2.GetExchange("ex1"); !ok || ex2.AccountName != "main" || !ex2.Enabled {
 		t.Fatalf("exchange not reloaded: %+v", ex2)
 	}
-	if len(s2.ListExchanges()) != 1 {
-		t.Fatalf("ListExchanges = %d, want 1", len(s2.ListExchanges()))
+	if len(s2.ListExchanges("")) != 1 {
+		t.Fatalf("ListExchanges = %d, want 1", len(s2.ListExchanges("")))
 	}
 	st2, ok := s2.GetStrategy("st1")
 	if !ok || st2.Name != "persist-me" || !st2.IsActive {
@@ -128,13 +128,13 @@ func TestPersistentCRUD(t *testing.T) {
 
 	// Telegram 单例（Upsert 合并绑定字段）
 	tg := &model.TelegramConfig{BotTokenEnc: "ENC:v1:tok", Language: "zh"}
-	s2.UpsertTelegramConfig(tg)
-	if got, ok := s2.GetTelegramConfig(); !ok || got.BotTokenEnc != "ENC:v1:tok" {
+	s2.UpsertTelegramConfig("u1", tg)
+	if got, ok := s2.GetTelegramConfig("u1"); !ok || got.BotTokenEnc != "ENC:v1:tok" {
 		t.Fatalf("telegram not saved: %+v", got)
 	}
 	tg2 := &model.TelegramConfig{BotTokenEnc: "ENC:v1:tok", ChatID: "12345", Language: "zh"}
-	s2.UpsertTelegramConfig(tg2)
-	if got, _ := s2.GetTelegramConfig(); got.ChatID != "12345" {
+	s2.UpsertTelegramConfig("u1", tg2)
+	if got, _ := s2.GetTelegramConfig("u1"); got.ChatID != "12345" {
 		t.Fatalf("telegram chat_id not merged: %+v", got)
 	}
 	sqlDB2, _ := db2.DB()
@@ -149,13 +149,13 @@ func TestPersistentCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New 3: %v", err)
 	}
-	if len(s3.ListTraders()) != 1 {
-		t.Fatalf("traders after reopen = %d", len(s3.ListTraders()))
+	if len(s3.ListTraders("")) != 1 {
+		t.Fatalf("traders after reopen = %d", len(s3.ListTraders("")))
 	}
-	if len(s3.ListModels()) != 1 {
-		t.Fatalf("models after reopen = %d", len(s3.ListModels()))
+	if len(s3.ListModels("")) != 1 {
+		t.Fatalf("models after reopen = %d", len(s3.ListModels("")))
 	}
-	if tg3, ok := s3.GetTelegramConfig(); !ok || tg3.ChatID != "12345" {
+	if tg3, ok := s3.GetTelegramConfig("u1"); !ok || tg3.ChatID != "12345" {
 		t.Fatalf("telegram after reopen: %+v", tg3)
 	}
 	sqlDB3, _ := db3.DB()
@@ -225,14 +225,14 @@ func TestPersistentStreamData(t *testing.T) {
 	if _, ok := s.ClosePosition(open[0].ID, 500); !ok {
 		t.Fatal("close position failed")
 	}
-	if len(s.ListPositionHistory("t1", "", 0, 10)) != 1 {
+	if len(s.ListPositionHistory("t1", "", "", 0, 10)) != 1 {
 		t.Fatal("position history = 0")
 	}
 
 	// 决策 + 权益
 	s.AddDecision(&model.DecisionRecord{TraderID: "t1", CycleNumber: 1, DecisionJSON: `[{"symbol":"BTCUSDT","action":"wait"}]`, Success: true})
 	s.AddDecision(&model.DecisionRecord{TraderID: "t1", CycleNumber: 2, Success: false})
-	if n := s.CountDecisions("t1"); n != 2 {
+	if n := s.CountDecisions("t1", ""); n != 2 {
 		t.Fatalf("decisions = %d", n)
 	}
 	if latest, ok := s.LatestDecisionByTrader("t1"); !ok || latest.CycleNumber != 2 {
@@ -240,7 +240,7 @@ func TestPersistentStreamData(t *testing.T) {
 	}
 	s.AddEquitySnapshot(&model.EquitySnapshot{TraderID: "t1", TotalEquity: 10000})
 	s.AddEquitySnapshot(&model.EquitySnapshot{TraderID: "t1", TotalEquity: 10200})
-	if eq := s.ListEquityByTrader("t1"); len(eq) != 2 || eq[1].TotalEquity != 10200 {
+	if eq := s.ListEquityByTrader("t1", ""); len(eq) != 2 || eq[1].TotalEquity != 10200 {
 		t.Fatalf("equity snapshots = %+v", eq)
 	}
 
@@ -250,7 +250,7 @@ func TestPersistentStreamData(t *testing.T) {
 	s.AddBacktestTrade(&model.BacktestTrade{RunID: "bt-1", Timestamp: 2, Symbol: "BTCUSDT", Action: "open_long", Quantity: 1, Price: 60000})
 	s.AddBacktestDecision(&model.BacktestDecision{RunID: "bt-1", Cycle: 1, Payload: json.RawMessage(`{"a":1}`)})
 	s.SaveBacktestCheckpoint("bt-1", json.RawMessage(`{"pos":0}`))
-	if runs := s.ListBacktestRuns(); len(runs) != 1 || runs[0].State != "running" {
+	if runs := s.ListBacktestRuns(""); len(runs) != 1 || runs[0].State != "running" {
 		t.Fatalf("backtest runs = %+v", runs)
 	}
 	if eq := s.ListBacktestEquities("bt-1"); len(eq) != 1 {
@@ -268,7 +268,7 @@ func TestPersistentStreamData(t *testing.T) {
 	s.AddDebateParticipant(&model.DebateParticipant{SessionID: "d1", AIModelID: "m1", Personality: "bull"})
 	s.AddDebateMessage(&model.DebateMessage{SessionID: "d1", ParticipantID: "p1", Round: 1, Content: "看多", Personality: "bull"})
 	s.AddDebateVote(&model.DebateVote{SessionID: "d1", AIModelID: "m1", Action: "open_long", Symbol: "BTCUSDT", Confidence: 0.8})
-	if sess, ok := s.GetDebateSession("d1"); !ok || sess.CurrentRound != 1 {
+	if sess, ok := s.GetDebateSession("d1", ""); !ok || sess.CurrentRound != 1 {
 		t.Fatalf("debate session = %+v", sess)
 	}
 	if msgs := s.ListDebateMessages("d1"); len(msgs) != 1 {
@@ -283,22 +283,22 @@ func TestPersistentStreamData(t *testing.T) {
 		t.Fatalf("OpenDB 2: %v", err)
 	}
 	s2, _ := New(Config{AdminEmail: "a@x.com", AdminPassword: "pw"}, db2)
-	if len(s2.ListOrders("t1")) != 1 || len(s2.ListFillsByTrader("t1")) != 1 {
+	if len(s2.ListOrders("t1", "")) != 1 || len(s2.ListFillsByTrader("t1", "")) != 1 {
 		t.Fatal("orders/fills lost after reopen")
 	}
-	if len(s2.ListPositionHistory("t1", "", 0, 10)) != 1 {
+	if len(s2.ListPositionHistory("t1", "", "", 0, 10)) != 1 {
 		t.Fatal("position history lost after reopen")
 	}
-	if s2.CountDecisions("t1") != 2 || len(s2.ListEquityByTrader("t1")) != 2 {
+	if s2.CountDecisions("t1", "") != 2 || len(s2.ListEquityByTrader("t1", "")) != 2 {
 		t.Fatal("decisions/equities lost after reopen")
 	}
-	if len(s2.ListBacktestRuns()) != 1 || len(s2.ListBacktestEquities("bt-1")) != 1 || len(s2.ListBacktestTrades("bt-1")) != 1 || len(s2.ListBacktestDecisions("bt-1")) != 1 {
+	if len(s2.ListBacktestRuns("")) != 1 || len(s2.ListBacktestEquities("bt-1")) != 1 || len(s2.ListBacktestTrades("bt-1")) != 1 || len(s2.ListBacktestDecisions("bt-1")) != 1 {
 		t.Fatal("backtest data lost after reopen")
 	}
 	if _, ok := s2.GetBacktestCheckpoint("bt-1"); !ok {
 		t.Fatal("checkpoint lost after reopen")
 	}
-	if len(s2.ListDebateSessions()) != 1 || len(s2.ListDebateMessages("d1")) != 1 || len(s2.ListDebateVotes("d1")) != 1 || len(s2.ListDebateParticipants("d1")) != 1 {
+	if len(s2.ListDebateSessions("")) != 1 || len(s2.ListDebateMessages("d1")) != 1 || len(s2.ListDebateVotes("d1")) != 1 || len(s2.ListDebateParticipants("d1")) != 1 {
 		t.Fatal("debate data lost after reopen")
 	}
 	// 级联删除

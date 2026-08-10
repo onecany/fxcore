@@ -147,7 +147,7 @@ func (e *Engine) decideAndExecute(ctx context.Context, runID string, r *run, sym
 
 // pickModel 取一个可用模型（回测默认用第一个已存模型）。
 func (e *Engine) pickModel() *llm.Model {
-	for _, m := range e.store.ListModels() {
+	for _, m := range e.store.ListModels("") {
 		if m.DeletedAt != nil || m.Status == "error" {
 			continue
 		}

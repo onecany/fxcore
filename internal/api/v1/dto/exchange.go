@@ -15,6 +15,7 @@ type CreateExchangeRequest struct {
 	SecretKey                 string `json:"secret_key"`                 // CEX
 	Passphrase                string `json:"passphrase"`                 // okx/gate/kucoin
 	HyperliquidWalletAddr     string `json:"hyperliquid_wallet_addr"`    // hyperliquid
+	HyperliquidPrivateKey     string `json:"hyperliquid_private_key"`    // hyperliquid 64 hex 私钥种子
 	AsterUser                 string `json:"aster_user"`                 // aster
 	AsterSigner               string `json:"aster_signer"`               // aster
 	AsterPrivateKey           string `json:"aster_private_key"`          // aster
@@ -34,6 +35,7 @@ type UpdateExchangeRequest struct {
 	SecretKey                 *string `json:"secret_key"`
 	Passphrase                *string `json:"passphrase"`
 	HyperliquidWalletAddr     *string `json:"hyperliquid_wallet_addr"`
+	HyperliquidPrivateKey     *string `json:"hyperliquid_private_key"`
 	AsterUser                 *string `json:"aster_user"`
 	AsterSigner               *string `json:"aster_signer"`
 	AsterPrivateKey           *string `json:"aster_private_key"`

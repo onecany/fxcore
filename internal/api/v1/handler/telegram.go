@@ -29,7 +29,7 @@ func NewTelegramHandler(svc *service.TelegramService) *TelegramHandler {
 // @Failure 404 {object} dto.ErrorResponse "1004 未配置"
 // @Router /telegram [get]
 func (h *TelegramHandler) Get(c *gin.Context) {
-	cfg, ok := h.svc.Get()
+	cfg, ok := h.svc.Get(currentUserID(c))
 	if !ok {
 		middleware.WriteError(c, middleware.NotFound("telegram not configured"))
 		return
@@ -63,7 +63,7 @@ func (h *TelegramHandler) Save(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	if apiErr := h.svc.Save(&req); apiErr != nil {
+	if apiErr := h.svc.Save(currentUserID(c), &req); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -86,7 +86,7 @@ func (h *TelegramHandler) SetModel(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	if apiErr := h.svc.SetModel(&req); apiErr != nil {
+	if apiErr := h.svc.SetModel(currentUserID(c), &req); apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
@@ -101,7 +101,7 @@ func (h *TelegramHandler) SetModel(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[any]
 // @Router /telegram/binding [delete]
 func (h *TelegramHandler) DeleteBinding(c *gin.Context) {
-	h.svc.Delete()
+	h.svc.Delete(currentUserID(c))
 	middleware.WriteOK[any](c, nil)
 }
 

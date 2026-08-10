@@ -218,7 +218,7 @@ func (e *Engine) Label(runID, label string) (*dto.RunMetadata, *middleware.APIEr
 	if _, apiErr := e.getRun(runID); apiErr != nil {
 		return nil, apiErr
 	}
-	meta, ok := e.store.GetBacktestRun(runID)
+	meta, ok := e.store.GetBacktestRun(runID, "")
 	if !ok {
 		return nil, middleware.BacktestNotFound("run not found")
 	}
@@ -258,7 +258,7 @@ func (e *Engine) Status(runID string) (*dto.BacktestStatusPayload, *middleware.A
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	meta, _ := e.store.GetBacktestRun(runID)
+	meta, _ := e.store.GetBacktestRun(runID, "")
 	meta.State = r.state
 	meta.ProgressPct = r.progress()
 	meta.EquityLast = r.equity
@@ -276,8 +276,8 @@ func (e *Engine) Status(runID string) (*dto.BacktestStatusPayload, *middleware.A
 }
 
 // List 运行列表（state 过滤 + 分页）。
-func (e *Engine) List(state, search string, page, size int) ([]*model.BacktestRun, int) {
-	all := e.store.ListBacktestRuns()
+func (e *Engine) List(userID, state, search string, page, size int) ([]*model.BacktestRun, int) {
+	all := e.store.ListBacktestRuns(userID)
 	var filtered []*model.BacktestRun
 	for _, r := range all {
 		if state != "" && r.State != state {
@@ -310,13 +310,25 @@ func (e *Engine) List(state, search string, page, size int) ([]*model.BacktestRu
 	return filtered[start:end], total
 }
 
+// OwnsRun 归属校验：run 存在且属主用户（UserID 空视为历史数据放行）。
+func (e *Engine) OwnsRun(runID, userID string) bool {
+	if runID == "" {
+		return true
+	}
+	meta, ok := e.store.GetBacktestRun(runID, "")
+	if !ok {
+		return false
+	}
+	return userID == "" || meta.UserID == "" || meta.UserID == userID
+}
+
 // getRun 取运行控制（不存在回 1412）。
 func (e *Engine) getRun(runID string) (*run, *middleware.APIError) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	r, ok := e.runs[runID]
 	if !ok {
-		if _, exists := e.store.GetBacktestRun(runID); exists {
+		if _, exists := e.store.GetBacktestRun(runID, ""); exists {
 			// store 有记录但进程内无控制（进程重启）——返回一个终结态 run
 			return &run{state: dto.BacktestFailed, lastError: "engine restarted"}, nil
 		}
@@ -327,7 +339,7 @@ func (e *Engine) getRun(runID string) (*run, *middleware.APIError) {
 
 // meta 汇总 RunMetadata（store 元数据 + 运行时状态）。
 func (e *Engine) meta(runID string) *dto.RunMetadata {
-	meta, ok := e.store.GetBacktestRun(runID)
+	meta, ok := e.store.GetBacktestRun(runID, "")
 	if !ok {
 		return &dto.RunMetadata{RunID: runID, State: dto.BacktestFailed}
 	}
@@ -346,7 +358,7 @@ func (e *Engine) meta(runID string) *dto.RunMetadata {
 
 // syncState 把运行状态持久化到 store 元数据。
 func (e *Engine) syncState(runID string) {
-	meta, ok := e.store.GetBacktestRun(runID)
+	meta, ok := e.store.GetBacktestRun(runID, "")
 	if !ok {
 		return
 	}

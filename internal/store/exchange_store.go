@@ -46,10 +46,14 @@ func (s *Store) GetExchange(id string) (*model.Exchange, bool) {
 }
 
 // ListExchanges 列出全部未删除交易所（返回副本切片）。
-func (s *Store) ListExchanges() []*model.Exchange {
+func (s *Store) ListExchanges(userID string) []*model.Exchange {
 	if s.db != nil {
 		var rows []model.Exchange
-		s.db.Order("created_at DESC").Find(&rows)
+		q := s.db.Order("created_at DESC")
+		if userID != "" {
+			q = q.Where("user_id = ?", userID)
+		}
+		q.Find(&rows)
 		out := make([]*model.Exchange, 0, len(rows))
 		for i := range rows {
 			out = append(out, &rows[i])
@@ -61,6 +65,9 @@ func (s *Store) ListExchanges() []*model.Exchange {
 	out := make([]*model.Exchange, 0, len(s.exchanges))
 	for _, e := range s.exchanges {
 		if e.DeletedAt != nil {
+			continue
+		}
+		if userID != "" && e.UserID != userID {
 			continue
 		}
 		cp := *e

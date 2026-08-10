@@ -54,36 +54,36 @@ func TestCreateValidation(t *testing.T) {
 	e, _ := testEngine(t)
 	base := dto.CreateDebateRequest{StrategyID: "s1", Symbol: "BTC-USDT", MaxRounds: 3}
 	// participants < 2
-	if _, err := e.Create(base); err == nil || err.Code != 1001 {
+	if _, err := e.Create("u1", base); err == nil || err.Code != 1001 {
 		t.Errorf("expected 1001 for <2 participants, got %v", err)
 	}
 	// participants > 5
 	base.Participants = []string{"m1", "m2", "m3", "m1", "m2", "m3"}
-	if _, err := e.Create(base); err == nil || err.Code != 1001 {
+	if _, err := e.Create("u1", base); err == nil || err.Code != 1001 {
 		t.Errorf("expected 1001 for >5 participants, got %v", err)
 	}
 	// max_rounds > 5
 	base.Participants = []string{"m1", "m2"}
 	base.MaxRounds = 6
-	if _, err := e.Create(base); err == nil || err.Code != 1001 {
+	if _, err := e.Create("u1", base); err == nil || err.Code != 1001 {
 		t.Errorf("expected 1001 for max_rounds>5, got %v", err)
 	}
 	// 重复模型
 	base.MaxRounds = 3
 	base.Participants = []string{"m1", "m1"}
-	if _, err := e.Create(base); err == nil || err.Code != 1001 {
+	if _, err := e.Create("u1", base); err == nil || err.Code != 1001 {
 		t.Errorf("expected 1001 for duplicate participants, got %v", err)
 	}
 	// 模型不存在
 	base.Participants = []string{"m1", "nope"}
-	if _, err := e.Create(base); err == nil || err.Code != 1004 {
+	if _, err := e.Create("u1", base); err == nil || err.Code != 1004 {
 		t.Errorf("expected 1004 for missing model, got %v", err)
 	}
 }
 
 func TestCreateAndGet(t *testing.T) {
 	e, _ := testEngine(t)
-	sess, apiErr := e.Create(dto.CreateDebateRequest{
+	sess, apiErr := e.Create("u1", dto.CreateDebateRequest{
 		Name:         "test debate",
 		StrategyID:   "s1",
 		Symbol:       "BTC-USDT",
@@ -96,7 +96,7 @@ func TestCreateAndGet(t *testing.T) {
 	if sess.Status != dto.DebatePending {
 		t.Errorf("status: %s", sess.Status)
 	}
-	detail, apiErr := e.Get(sess.ID)
+	detail, apiErr := e.Get(sess.ID, "u1")
 	if apiErr != nil {
 		t.Fatalf("get: %v", apiErr)
 	}
@@ -111,29 +111,29 @@ func TestCreateAndGet(t *testing.T) {
 
 func TestStartCancelTransitions(t *testing.T) {
 	e, _ := testEngine(t)
-	sess, _ := e.Create(dto.CreateDebateRequest{
+	sess, _ := e.Create("u1", dto.CreateDebateRequest{
 		Name:         "t", StrategyID: "s1", Symbol: "BTC-USDT",
 		Participants: []string{"m1", "m2"}, MaxRounds: 1,
 	})
 	// 未 start 先 cancel 应报错
-	if err := e.Cancel(sess.ID); err == nil {
+	if err := e.Cancel("u1", sess.ID); err == nil {
 		t.Errorf("expected error cancelling pending")
 	}
-	if err := e.Start(sess.ID); err != nil {
+	if err := e.Start("u1", sess.ID); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if err := e.Cancel(sess.ID); err != nil {
+	if err := e.Cancel("u1", sess.ID); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	// 二次 start 应报错（已 cancelled）
-	if err := e.Start(sess.ID); err == nil {
+	if err := e.Start("u1", sess.ID); err == nil {
 		t.Errorf("expected error restarting cancelled")
 	}
 }
 
 func TestAggregateConsensus(t *testing.T) {
 	e, _ := testEngine(t)
-	sess, _ := e.Create(dto.CreateDebateRequest{
+	sess, _ := e.Create("u1", dto.CreateDebateRequest{
 		Name: "t", StrategyID: "s1", Symbol: "BTC-USDT",
 		Participants: []string{"m1", "m2", "m3"}, MaxRounds: 1,
 	})
@@ -160,7 +160,7 @@ func TestAggregateConsensus(t *testing.T) {
 
 func TestAggregateNoConsensus(t *testing.T) {
 	e, _ := testEngine(t)
-	sess, _ := e.Create(dto.CreateDebateRequest{
+	sess, _ := e.Create("u1", dto.CreateDebateRequest{
 		Name: "t", StrategyID: "s1", Symbol: "BTC-USDT",
 		Participants: []string{"m1", "m2"}, MaxRounds: 1,
 	})

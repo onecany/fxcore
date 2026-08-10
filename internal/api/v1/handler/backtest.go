@@ -10,11 +10,21 @@ import (
 	"fxcore/internal/api/v1/dto"
 	"fxcore/internal/backtest"
 	"fxcore/internal/middleware"
+	"fxcore/internal/pkg/jwt"
 )
 
 // BacktestHandler 回测 15 端点（API设计.md §11）。
 type BacktestHandler struct {
 	engine *backtest.Engine
+}
+
+// authorizeRun 校验 run 归属当前用户（多用户隔离；越权/不存在 → 404）。
+func (h *BacktestHandler) authorizeRun(c *gin.Context, runID string) bool {
+	if !h.engine.OwnsRun(runID, currentUserID(c)) {
+		middleware.WriteError(c, middleware.NotFound("backtest run not found"))
+		return false
+	}
+	return true
 }
 
 // NewBacktestHandler 构造回测处理器。
@@ -65,35 +75,50 @@ func (h *BacktestHandler) Control(c *gin.Context) {
 	}
 	switch c.Param("action") {
 	case "pause":
-		meta, apiErr := h.engine.Pause(req.RunID)
+		if !h.authorizeRun(c, req.RunID) {
+		return
+	}
+	meta, apiErr := h.engine.Pause(req.RunID)
 		if apiErr != nil {
 			middleware.WriteError(c, apiErr)
 			return
 		}
 		middleware.WriteOK(c, meta)
 	case "resume":
-		meta, apiErr := h.engine.Resume(req.RunID)
+		if !h.authorizeRun(c, req.RunID) {
+		return
+	}
+	meta, apiErr := h.engine.Resume(req.RunID)
 		if apiErr != nil {
 			middleware.WriteError(c, apiErr)
 			return
 		}
 		middleware.WriteOK(c, meta)
 	case "stop":
-		meta, apiErr := h.engine.Stop(req.RunID)
+		if !h.authorizeRun(c, req.RunID) {
+		return
+	}
+	meta, apiErr := h.engine.Stop(req.RunID)
 		if apiErr != nil {
 			middleware.WriteError(c, apiErr)
 			return
 		}
 		middleware.WriteOK(c, meta)
 	case "label":
-		meta, apiErr := h.engine.Label(req.RunID, req.Label)
+		if !h.authorizeRun(c, req.RunID) {
+		return
+	}
+	meta, apiErr := h.engine.Label(req.RunID, req.Label)
 		if apiErr != nil {
 			middleware.WriteError(c, apiErr)
 			return
 		}
 		middleware.WriteOK(c, meta)
 	case "delete":
-		if apiErr := h.engine.Delete(req.RunID); apiErr != nil {
+		if !h.authorizeRun(c, req.RunID) {
+		return
+	}
+	if apiErr := h.engine.Delete(req.RunID); apiErr != nil {
 			middleware.WriteError(c, apiErr)
 			return
 		}
@@ -113,6 +138,9 @@ func (h *BacktestHandler) Control(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1412 run 不存在"
 // @Router /backtest/status [get]
 func (h *BacktestHandler) Status(c *gin.Context) {
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	payload, apiErr := h.engine.Status(c.Query("run_id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -139,7 +167,7 @@ func (h *BacktestHandler) Runs(c *gin.Context) {
 		return
 	}
 	page, size := q.Normalized()
-	items, total := h.engine.List(q.Status, c.Query("search"), page, size)
+	items, total := h.engine.List(currentUserID(c), q.Status, c.Query("search"), page, size)
 	totalPages := (total + size - 1) / size
 	if totalPages == 0 {
 		totalPages = 1
@@ -168,6 +196,9 @@ func (h *BacktestHandler) Equity(c *gin.Context) {
 			limit = n
 		}
 	}
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	items, apiErr := h.engine.Equity(c.Query("run_id"), limit)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -192,6 +223,9 @@ func (h *BacktestHandler) Equity(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[[]dto.BacktestTradeEvent]
 // @Router /backtest/trades [get]
 func (h *BacktestHandler) Trades(c *gin.Context) {
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	items, apiErr := h.engine.Trades(c.Query("run_id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -219,6 +253,9 @@ func (h *BacktestHandler) Trades(c *gin.Context) {
 // @Failure 202 {object} dto.ApiResponse[any] "回测未完成"
 // @Router /backtest/metrics [get]
 func (h *BacktestHandler) Metrics(c *gin.Context) {
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	m, ready, apiErr := h.engine.Metrics(c.Query("run_id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -247,6 +284,9 @@ func (h *BacktestHandler) Trace(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid cycle", nil))
 		return
 	}
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	rec, apiErr := h.engine.Trace(c.Query("run_id"), cycle)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -272,6 +312,9 @@ func (h *BacktestHandler) Decisions(c *gin.Context) {
 		return
 	}
 	page, size := q.Normalized()
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	items, total, apiErr := h.engine.Decisions(c.Query("run_id"), page, size)
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -298,6 +341,9 @@ func (h *BacktestHandler) Decisions(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1412 run 不存在"
 // @Router /backtest/export [get]
 func (h *BacktestHandler) Export(c *gin.Context) {
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	data, apiErr := h.engine.Export(c.Query("run_id"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -318,6 +364,9 @@ func (h *BacktestHandler) Export(c *gin.Context) {
 // @Success 200 {object} dto.ApiResponse[map[string]any]
 // @Router /backtest/klines [get]
 func (h *BacktestHandler) Klines(c *gin.Context) {
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	items, apiErr := h.engine.Klines(c.Query("run_id"), c.Query("symbol"), c.Query("timeframe"))
 	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
@@ -326,10 +375,18 @@ func (h *BacktestHandler) Klines(c *gin.Context) {
 	middleware.WriteOK(c, map[string]any{"klines": items})
 }
 
-// currentUserID 单用户部署：返回固定标识（多用户时替换为 claims 解析）。
+// currentUserID 当前请求用户 ID（JWT Subject = 用户 ID；未登录/异常回退单用户标识）。
 func currentUserID(c *gin.Context) string {
 	if cl := middleware.UserClaims(c); cl != nil {
-		return cl.Email
+		return cl.Subject
+	}
+	return "single-user"
+}
+
+// userIDOfClaims 从已解析的 JWT claims 取用户 ID（WS 链路无 gin.Context）。
+func userIDOfClaims(cl *jwt.Claims) string {
+	if cl != nil && cl.Subject != "" {
+		return cl.Subject
 	}
 	return "single-user"
 }
