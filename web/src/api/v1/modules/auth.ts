@@ -7,6 +7,11 @@ export function login(req: LoginRequest): Promise<LoginResponse> {
   return client.post<LoginResponse>('/auth/login', req);
 }
 
+/** 注册：创建账号并直接登录（响应结构同 login） */
+export function register(req: { email: string; password: string; nickname?: string }): Promise<LoginResponse> {
+  return client.post<LoginResponse>('/auth/register', req);
+}
+
 /** 刷新（Refresh 轮换）：由 client.ts 刷新队列内部调用，一般不直接使用 */
 export function refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken?: string; signSecret?: string }> {
   return client.post('/auth/refresh', { refresh_token: refreshToken });
