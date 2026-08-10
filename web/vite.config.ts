@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// FXcore-web Vite 配置（React 18 + TS；后端托管构建产物时可复用）
+// FXcore-web Vite 配置（React 19 + TS；后端托管构建产物时可复用）
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -15,5 +15,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        // 代码分割：第三方大块独立分包，业务代码更新不影响 vendor/charts 长缓存
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router', 'swr', 'zustand', 'axios'],
+          charts: ['lightweight-charts'],
+        },
+      },
+    },
   },
 });
