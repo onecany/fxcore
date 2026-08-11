@@ -34,7 +34,7 @@ export function useTraders(params: TraderListParams = {}) {
   const { data, error, isLoading, mutate: mutateList } = useSWR<PaginatedData<TraderResponse>>(
     key,
     () => traderApi.listTraders(params),
-    { keepPreviousData: true },
+    { keepPreviousData: true, refreshInterval: 5000 },
   );
 
   /**

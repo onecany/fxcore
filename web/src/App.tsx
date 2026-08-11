@@ -113,7 +113,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 /** 交易员页内部跨页跳转（创建/查看后跳仪表盘等） */
 function TradersRoute() {
   const navigate = useNavigate();
-  return <TradersSection onNavigate={(tab) => navigate(`/${tab}`)} />;
+  return <TradersSection onNavigate={(tab, opts) => navigate({ pathname: `/${tab}`, search: opts?.traderId ? `?trader=${opts.traderId}` : undefined })} />;
 }
 
 function AuthGate() {

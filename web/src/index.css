@@ -848,13 +848,127 @@ body::after {
   gap: 14px;
   align-items: start;
 }
+/* 三栏：资源侧栏 | 编队网格 | 详情速览 */
+.fleet-grid-3 { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(240px, 300px); }
+@media (max-width: 1200px) {
+  .fleet-grid-3 { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); }
+  .fleet-grid-3 .fleet-inspect { grid-column: 1 / -1; }
+}
 @media (max-width: 900px) {
   .fleet-grid { grid-template-columns: 1fr; }
+  .fleet-grid-3 { grid-template-columns: 1fr; }
+  .fleet-grid-3 .fleet-inspect { grid-column: auto; }
 }
 .fleet-sidebar {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+/* 编队概览条（TOTAL / RUNNING / PAUSED / STOPPED） */
+.fleet-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.fleet-summary-cell {
+  padding: 10px 14px;
+  background: var(--fxcore-panel);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-md);
+  text-align: center;
+}
+.fleet-summary-label {
+  display: block;
+  font-family: var(--fxcore-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--fxcore-text-faint);
+  margin-bottom: 4px;
+}
+.fleet-summary-value {
+  font-family: var(--fxcore-font-mono);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+}
+.fleet-summary-value.ok { color: var(--fxcore-up); text-shadow: 0 0 14px rgba(52, 211, 153, 0.35); }
+.fleet-summary-value.warn { color: var(--fxcore-warn); }
+.fleet-summary-value.dim { color: var(--fxcore-text-faint); }
+@media (max-width: 640px) {
+  .fleet-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* 编队网格卡片（中栏） */
+.fleet-cards { display: flex; flex-direction: column; gap: 10px; }
+.trader-card {
+  padding: 12px 14px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.trader-card:hover { border-color: var(--fxcore-panel-border-strong); box-shadow: var(--fxcore-glow-accent); }
+.trader-card.selected {
+  border-color: var(--fxcore-panel-border-strong);
+  background: rgba(240, 185, 11, 0.06);
+  box-shadow: var(--fxcore-glow-accent);
+}
+.trader-card-head { display: flex; align-items: center; gap: 10px; }
+.trader-card-head .trader-info { display: flex; flex-direction: column; min-width: 0; }
+.trader-card-head .trader-name {
+  font-family: var(--fxcore-font-mono);
+  font-size: 13.5px;
+  color: var(--fxcore-text);
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trader-card-head .trader-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--fxcore-text-faint);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trader-card-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0;
+}
+.metric-cell {
+  padding: 6px 10px;
+  background: var(--fxcore-panel);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+}
+.metric-label {
+  display: block;
+  font-family: var(--fxcore-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--fxcore-text-faint);
+}
+.metric-value {
+  font-family: var(--fxcore-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+}
+.metric-value.up { color: var(--fxcore-up); }
+.metric-value.down { color: var(--fxcore-down); }
+.trader-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* 资源卡（AI Models / Exchanges） */
