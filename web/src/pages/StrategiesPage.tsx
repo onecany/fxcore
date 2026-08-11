@@ -1,150 +1,14 @@
 // Strategies 页面：策略工作室（顶栏 + 280px 侧栏 + 二级 tab）。
 // 编辑 = 风格档位（§9.5 四种模式）→ 保存写 risk_control/prompt_variant（MergeConfigInto 部分合并）。
-// 提示词 tab = preview-prompt 终端窗。
+// 提示词 tab = preview-prompt 终端窗。数据层 SWR + 5s 轮询。
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import * as strategyApi from '../api/v1/modules/strategies';
 import type { StrategyItem, CoinSourceConfig, CoinSourceType } from '../api/v1/types/contract';
 import { PageHead, Alert, Terminal } from '../components/ui';
-
-type Profile = 'balanced' | 'aggressive' | 'conservative' | 'scalping';
-
-interface ProfileDef {
-  value: Profile;
-  name: string;
-  note: string;
-  params: { k: string; v: string }[];
-  patch: Record<string, unknown>;
-}
-
-const PROFILES: ProfileDef[] = [
-  {
-    value: 'balanced',
-    name: '均衡',
-    note: '机会与风险的推荐平衡（默认）',
-    params: [
-      { k: 'MAX_POS', v: '3' },
-      { k: 'LEV BTC/ETH', v: '5x' },
-      { k: 'LEV ALT', v: '5x' },
-      { k: 'CONF', v: '60%' },
-      { k: 'TF', v: '15m' },
-      { k: 'RR', v: '1.5' },
-    ],
-    patch: {
-      prompt_variant: 'balanced',
-      risk_control: {
-        max_positions: 3,
-        btc_eth_max_leverage: 5,
-        altcoin_max_leverage: 5,
-        btc_eth_max_position_value_ratio: 5,
-        altcoin_max_position_value_ratio: 1,
-        max_margin_usage: 0.3,
-        min_position_size: 12,
-        min_confidence: 0.6,
-        min_risk_reward_ratio: 1.5,
-      },
-    },
-  },
-  {
-    value: 'aggressive',
-    name: '激进',
-    note: '更高杠杆与更低置信门槛',
-    params: [
-      { k: 'MAX_POS', v: '3' },
-      { k: 'LEV BTC/ETH', v: '10x' },
-      { k: 'LEV ALT', v: '10x' },
-      { k: 'CONF', v: '45%' },
-      { k: 'TF', v: '15m' },
-      { k: 'RR', v: '1.2' },
-    ],
-    patch: {
-      prompt_variant: 'aggressive',
-      risk_control: {
-        max_positions: 3,
-        btc_eth_max_leverage: 10,
-        altcoin_max_leverage: 10,
-        btc_eth_max_position_value_ratio: 8,
-        altcoin_max_position_value_ratio: 2,
-        max_margin_usage: 0.5,
-        min_position_size: 12,
-        min_confidence: 0.45,
-        min_risk_reward_ratio: 1.2,
-      },
-    },
-  },
-  {
-    value: 'conservative',
-    name: '稳健',
-    note: '少交易，仅对齐信号',
-    params: [
-      { k: 'MAX_POS', v: '1' },
-      { k: 'LEV BTC/ETH', v: '3x' },
-      { k: 'LEV ALT', v: '3x' },
-      { k: 'CONF', v: '75%' },
-      { k: 'TF', v: '1h' },
-      { k: 'RR', v: '2.0' },
-    ],
-    patch: {
-      prompt_variant: 'conservative',
-      risk_control: {
-        max_positions: 1,
-        btc_eth_max_leverage: 3,
-        altcoin_max_leverage: 3,
-        btc_eth_max_position_value_ratio: 3,
-        altcoin_max_position_value_ratio: 1,
-        max_margin_usage: 0.2,
-        min_position_size: 12,
-        min_confidence: 0.75,
-        min_risk_reward_ratio: 2.0,
-      },
-    },
-  },
-  {
-    value: 'scalping',
-    name: '剥头皮',
-    note: '快节奏短周期，紧密止损',
-    params: [
-      { k: 'MAX_POS', v: '3' },
-      { k: 'LEV BTC/ETH', v: '5x' },
-      { k: 'LEV ALT', v: '5x' },
-      { k: 'CONF', v: '50%' },
-      { k: 'TF', v: '1m' },
-      { k: 'RR', v: '1.0' },
-    ],
-    patch: {
-      prompt_variant: 'scalping',
-      risk_control: {
-        max_positions: 3,
-        btc_eth_max_leverage: 5,
-        altcoin_max_leverage: 5,
-        btc_eth_max_position_value_ratio: 5,
-        altcoin_max_position_value_ratio: 1,
-        max_margin_usage: 0.3,
-        min_position_size: 12,
-        min_confidence: 0.5,
-        min_risk_reward_ratio: 1.0,
-      },
-    },
-  },
-];
-
-/** 币源类型选项（对齐后端 dto.CoinSourceType；引擎实际消费 staticCoins + sourceType；ai500 已下线不提供） */
-const COIN_SOURCE_TYPES: { value: CoinSourceType; name: string; note: string }[] = [
-  { value: 'static', name: 'static · 固定币种', note: '引擎实际消费（候选币 = staticCoins）' },
-  { value: 'oi_top', name: 'oi_top · 持仓量 TOP', note: '高持仓量标的' },
-  { value: 'oi_low', name: 'oi_low · 持仓量 LOW', note: '低持仓量标的' },
-  { value: 'mixed', name: 'mixed · 混合', note: '多源混合' },
-];
-
-/** 逗号分隔字符串 ↔ 币种数组 */
-function coinsToStr(arr: string[] | undefined): string {
-  return (arr ?? []).join(', ');
-}
-function strToCoins(s: string): string[] {
-  return s.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
-}
+import { PROFILES, COIN_SOURCE_TYPES, coinsToStr, strToCoins, camelKey, type ProfileDef, type CsEditable } from '../sections/strategies/strategy-data';
 
 export default function StrategiesPage() {
-  const [items, setItems] = useState<StrategyItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [subTab, setSubTab] = useState<'editor' | 'prompt'>('editor');
   const [draft, setDraft] = useState<Record<string, unknown> | null>(null);
@@ -154,20 +18,23 @@ export default function StrategiesPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
 
-  const load = useCallback(async () => {
-    try {
+  // 策略列表：SWR + 5s 轮询（激活状态自动刷新）
+  const { data, mutate } = useSWR<StrategyItem[]>(
+    ['/strategies', 'studio'],
+    async () => {
       const d = await strategyApi.listStrategies();
-      setItems(d.items);
-      setError(null);
-      if (!d.items.some((s) => s.id === selectedId)) {
-        setSelectedId(d.items[0]?.id ?? null);
-      }
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [selectedId]);
+      return d.items;
+    },
+    { refreshInterval: 5000 },
+  );
+  const items = useMemo(() => data ?? [], [data]);
 
-  useEffect(() => { void load(); }, [load]);
+  // 列表加载后确保有选中项
+  useEffect(() => {
+    if (!items.some((s) => s.id === selectedId)) {
+      setSelectedId(items[0]?.id ?? null);
+    }
+  }, [items, selectedId]);
 
   const selected = useMemo(() => items.find((s) => s.id === selectedId) ?? null, [items, selectedId]);
 
@@ -184,7 +51,6 @@ export default function StrategiesPage() {
 
   // ===== 币源（Coin Source）编辑视图：draft 优先，fallback 后端配置 =====
   // draft.coin_source 用 camel 键（与 contract 对齐），提交时 client 自动 toSnake。
-  type CsEditable = CoinSourceConfig & { staticCoins: string[]; excludedCoins: string[] };
   const cs: CsEditable = useMemo(() => {
     const d = draft?.coin_source as CoinSourceConfig | undefined;
     const base = selected?.config?.coinSource;
@@ -216,7 +82,7 @@ export default function StrategiesPage() {
       setMsg(`策略「${newName.trim()}」已创建（默认风控生效）`);
       setNewName('');
       setSelectedId(s.id);
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); }
   };
 
@@ -224,13 +90,13 @@ export default function StrategiesPage() {
     try {
       const s = await strategyApi.activateStrategy(id);
       setMsg(`已激活：${s.name}`);
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); }
   };
 
   const remove = async (id: string) => {
     if (!window.confirm('删除该策略？')) return;
-    try { await strategyApi.deleteStrategy(id); void load(); } catch (err) { setError(String(err)); }
+    try { await strategyApi.deleteStrategy(id); void mutate(); } catch (err) { setError(String(err)); }
   };
 
   const applyProfile = (p: ProfileDef) => {
@@ -246,7 +112,7 @@ export default function StrategiesPage() {
       await strategyApi.updateStrategy(selected.id, { config: draft as never });
       setMsg('已保存（MergeConfigInto 部分合并，未提及字段保留）');
       setDraft(null);
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); } finally { setSaving(false); }
   };
 
@@ -548,11 +414,6 @@ export default function StrategiesPage() {
       </div>
     </section>
   );
-}
-
-// snake_case → camelCase（prompt_sections 前端字段名）
-function camelKey(k: string): string {
-  return k.replace(/_([a-z])/g, (_, ch: string) => ch.toUpperCase());
 }
 
 function RiskCell({ k, v }: { k: string; v: string }) {
