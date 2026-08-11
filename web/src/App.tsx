@@ -35,6 +35,19 @@ function LangSwitch() {
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const t = useT();
+  const location = useLocation();
+  const [clock, setClock] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date();
+      const p = (n: number) => String(n).padStart(2, '0');
+      setClock(`${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const navItems = [
     { path: '/dashboard', label: t.nav.dashboard, glyph: '◉' },
     { path: '/traders', label: t.nav.traders, glyph: '◈' },
@@ -44,31 +57,55 @@ function Shell({ children }: { children: React.ReactNode }) {
     { path: '/backtest', label: t.nav.backtest, glyph: '⌁' },
     { path: '/debate', label: t.nav.debate, glyph: '⚡' },
   ];
+  const cur = navItems.find((i) => location.pathname.startsWith(i.path));
+
   return (
-    <div className="app-shell">
-      <header className="app-topbar">
-        <div className="app-brand">
-          <span className="logo" style={{ fontSize: 20 }}>{t.brand.name}</span>
+    <div className="app-frame">
+      <aside className="app-sidebar">
+        <div className="brand-wrap">
+          <span className="logo">{t.brand.name}</span>
           <span className="sub">{t.brand.sub}</span>
         </div>
-        <div className="app-user">
-          <LangSwitch />
-          <span className="user-email"><span className="dot" />{user?.email}</span>
-          <button className="btn ghost" onClick={() => void logout()}>{t.common.logout}</button>
+        <nav className="side-nav">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => `side-tab ${isActive ? 'active' : ''}`}
+            >
+              <span className="glyph">{item.glyph}</span>
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="side-foot">
+          <div className="sys-row">
+            <span>SYSTEM</span>
+            <span className="led" title="system-ready" />
+          </div>
+          <div className="sys-row">
+            <span>TIME</span>
+            <span>{clock}</span>
+          </div>
         </div>
-      </header>
-      <nav className="app-nav">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-          >
-            {item.glyph} {item.label}
-          </NavLink>
-        ))}
-      </nav>
-      <div className="scanline">{children}</div>
+      </aside>
+      <main className="app-main">
+        <div className="app-statusbar">
+          <div className="st-crumb">
+            <span className="crumb">{t.brand.name}</span>
+            <span className="slash">/</span>
+            <span className="cur">{cur?.label ?? ''}</span>
+          </div>
+          <div className="st-side">
+            <LangSwitch />
+            <span className="st-mono">{clock}</span>
+            <span className="st-mono" style={{ color: 'var(--fxcore-up)' }}>●</span>
+            <span className="st-mono">{user?.email}</span>
+            <button className="btn ghost" onClick={() => void logout()}>{t.common.logout}</button>
+          </div>
+        </div>
+        <div className="scanline">{children}</div>
+      </main>
     </div>
   );
 }
