@@ -213,11 +213,12 @@ export default function StrategiesPage() {
 
               {subTab === 'editor' ? (
                 <>
+                  {/* 编辑区两列：左配置 / 右提示词 */}
+                  <div className="studio-editor-grid">
+                  <div className="studio-editor-left">
                   {/* 交易风格 */}
-                  <section style={{ border: '1px solid var(--fxcore-panel-border)', borderRadius: 'var(--fxcore-r-md)', background: 'var(--fxcore-panel)', padding: 14, marginBottom: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fxcore-text)', marginBottom: 10, letterSpacing: '0.06em' }}>
-                      ▸ 交易风格（§9.5 writeModeVariant）
-                    </div>
+                  <section className="studio-section">
+                    <div className="studio-section-title">▸ 交易风格（§9.5 writeModeVariant）</div>
                     <div className="style-cards">
                       {PROFILES.map((p) => (
                         <button
@@ -238,11 +239,9 @@ export default function StrategiesPage() {
                   </section>
 
                   {/* 币源（Coin Source）— 可编辑，写入 draft.coin_source */}
-                  <section style={{ border: '1px solid var(--fxcore-panel-border)', borderRadius: 'var(--fxcore-r-md)', background: 'var(--fxcore-panel)', padding: 14, marginBottom: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fxcore-text)', letterSpacing: '0.06em' }}>
-                        ▸ 币源（Coin Source）
-                      </div>
+                  <section className="studio-section">
+                    <div className="studio-section-title">
+                      <span>▸ 币源（Coin Source）</span>
                       {csDirty && <span style={{ fontSize: 11, color: 'var(--fxcore-accent)' }}>● 已编辑，未保存</span>}
                     </div>
                     <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
@@ -329,10 +328,8 @@ export default function StrategiesPage() {
                   </section>
 
                   {/* 风控摘要 */}
-                  <section style={{ border: '1px solid var(--fxcore-panel-border)', borderRadius: 'var(--fxcore-r-md)', background: 'var(--fxcore-panel)', padding: 14 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fxcore-text)', marginBottom: 10, letterSpacing: '0.06em' }}>
-                      ▸ 风控参数（§14.1 强制公式）
-                    </div>
+                  <section className="studio-section">
+                    <div className="studio-section-title">▸ 风控参数（§14.1 强制公式）</div>
                     <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', marginBottom: 0 }}>
                       <RiskCell k="MAX_POS" v={String(selected.config?.riskControl?.maxPositions ?? 3)} />
                       <RiskCell k="LEV BTC/ETH" v={`${selected.config?.riskControl?.btcEthMaxLeverage ?? 5}x`} />
@@ -342,11 +339,13 @@ export default function StrategiesPage() {
                       <RiskCell k="CONF" v={`${Math.round((selected.config?.riskControl?.minConfidence ?? 0.6) * 100)}%`} />
                     </div>
                   </section>
+                  </div>{/* /studio-editor-left */}
+
+                  {/* 右列：用户提示词（sticky） */}
+                  <div className="studio-editor-right">
                   {/* 用户提示词（VERBATIM 透传） */}
-                  <section style={{ border: '1px solid var(--fxcore-panel-border)', borderRadius: 'var(--fxcore-r-md)', background: 'var(--fxcore-panel)', padding: 14, marginTop: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fxcore-text)', marginBottom: 4, letterSpacing: '0.06em' }}>
-                      ▸ 用户提示词（custom_prompt · prompt_sections）
-                    </div>
+                  <section className="studio-section">
+                    <div className="studio-section-title">▸ 用户提示词（custom_prompt · prompt_sections）</div>
                     <div className="dim" style={{ fontSize: 11, marginBottom: 8 }}>
                       语言契约 §9.3：用户段 VERBATIM 透传进系统提示词，内置段保持英文，用户段不过滤。留空则不出现在提示词中。
                     </div>
@@ -396,6 +395,8 @@ export default function StrategiesPage() {
                       </span>
                     </div>
                   </section>
+                  </div>{/* /studio-editor-right */}
+                  </div>{/* /studio-editor-grid */}
                 </>
               ) : (
                 <>
