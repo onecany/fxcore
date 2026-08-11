@@ -619,6 +619,41 @@ body::after {
 .mt { margin-top: 16px; }
 .mb { margin-bottom: 14px; }
 
+/* 表单分区卡（studio 分层：基础信息 / 连接 / 参数） */
+.form-section {
+  padding: 12px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+}
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--fxcore-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fxcore-accent);
+  margin-bottom: 10px;
+}
+.form-section-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--fxcore-accent);
+  border: 1px solid rgba(240, 185, 11, 0.35);
+  border-radius: 4px;
+  background: rgba(240, 185, 11, 0.08);
+}
+
 /* ========== Studio 布局 ========== */
 .prompt-area {
   width: 100%;

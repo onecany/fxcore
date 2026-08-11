@@ -136,27 +136,42 @@ export default function ModelsPage() {
           )}
         </Panel>
 
-        {/* 右：表单 */}
+        {/* 右：表单（studio 分层：基础信息 / 连接 / 参数 三卡） */}
         <Panel title={editingId ? '编辑模型' : '新建模型'}>
-          <form onSubmit={(e) => void submit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label className="dim" style={{ fontSize: 11 }}>别名（显示名）</label>
-            <input className="prompt-area" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：deepseek 主力" />
-            <label className="dim" style={{ fontSize: 11 }}>提供商</label>
-            <select className="prompt-area" value={provider} onChange={(e) => { setProvider(e.target.value); setModelName(''); }}>
-              <option value="">— 选择提供商 —</option>
-              {providers.map((p) => <option key={p.provider} value={p.provider}>{p.provider}</option>)}
-            </select>
-            <label className="dim" style={{ fontSize: 11 }}>模型</label>
-            <select className="prompt-area" value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
-              <option value="">— 选择模型 —</option>
-              {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
-            </select>
-            <label className="dim" style={{ fontSize: 11 }}>
-              API Key {editingId ? '（留空保留原 Key）' : ''}
-            </label>
-            <input className="prompt-area" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." autoComplete="off" />
-            <label className="dim" style={{ fontSize: 11 }}>温度 temperature</label>
-            <input className="prompt-area" type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+          <form onSubmit={(e) => void submit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* 基础信息卡 */}
+            <div className="form-section">
+              <div className="form-section-title"><span className="form-section-num">01</span>基础信息</div>
+              <label className="dim" style={{ fontSize: 11 }}>别名（显示名）</label>
+              <input className="prompt-area" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：deepseek 主力" />
+              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>提供商</label>
+              <select className="prompt-area" value={provider} onChange={(e) => { setProvider(e.target.value); setModelName(''); }}>
+                <option value="">— 选择提供商 —</option>
+                {providers.map((p) => <option key={p.provider} value={p.provider}>{p.provider}</option>)}
+              </select>
+              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>模型</label>
+              <select className="prompt-area" value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
+                <option value="">— 选择模型 —</option>
+                {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
+              </select>
+            </div>
+
+            {/* 连接卡 */}
+            <div className="form-section">
+              <div className="form-section-title"><span className="form-section-num">02</span>连接</div>
+              <label className="dim" style={{ fontSize: 11 }}>
+                API Key {editingId ? '（留空保留原 Key）' : ''}
+              </label>
+              <input className="prompt-area" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." autoComplete="off" />
+            </div>
+
+            {/* 参数卡 */}
+            <div className="form-section">
+              <div className="form-section-title"><span className="form-section-num">03</span>参数</div>
+              <label className="dim" style={{ fontSize: 11 }}>温度 temperature</label>
+              <input className="prompt-area" type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+            </div>
+
             <div className="row" style={{ gap: 8, marginTop: 4 }}>
               <button className="btn primary" type="submit" disabled={busy} style={{ flex: 1 }}>
                 {busy ? '处理中…' : editingId ? '● 保存修改' : '＋ 创建模型'}
