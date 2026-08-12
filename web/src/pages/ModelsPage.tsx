@@ -22,7 +22,8 @@ export default function ModelsPage() {
   const [apiKey, setApiKey] = useState('');
   const [temperature, setTemperature] = useState('0.7');
   const [baseUrl, setBaseUrl] = useState(''); // 仅 custom provider 必填（config.base_url）
-  const [testResult, setTestResult] = useState<{ success: boolean; latency?: number; error?: string } | null>(null);
+  // 每个模型的测试状态：testing 进行中 + result 成功/失败，绑定到对应模型行显示
+  const [testStates, setTestStates] = useState<Record<string, { testing: boolean; success?: boolean; latency?: number; error?: string }>>({});
 
   const isCustom = provider === 'custom';
 
@@ -45,14 +46,14 @@ export default function ModelsPage() {
 
   const startCreate = () => {
     setEditingId(null);
-    setName(''); setProvider(''); setModelName(''); setApiKey(''); setTemperature('0.7'); setBaseUrl(''); setTestResult(null); setMsg(null); setError(null);
+    setName(''); setProvider(''); setModelName(''); setApiKey(''); setTemperature('0.7'); setBaseUrl(''); setTestStates({}); setMsg(null); setError(null);
   };
 
   const startEdit = (m: AIModel) => {
     setEditingId(m.id);
     setName(m.name); setProvider(m.provider); setModelName(m.modelName); setApiKey(''); setTemperature(String(m.config?.temperature ?? 0.7));
     setBaseUrl(typeof m.config?.baseUrl === 'string' ? m.config.baseUrl : '');
-    setTestResult(null); setMsg(null); setError(null);
+    setMsg(null); setError(null);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -102,11 +103,13 @@ export default function ModelsPage() {
   };
 
   const test = async (m: AIModel) => {
-    setTestResult(null);
+    setTestStates((prev) => ({ ...prev, [m.id]: { testing: true } }));
     try {
       const r = await modelApi.testModel(m.id);
-      setTestResult(r);
-    } catch (err) { setTestResult({ success: false, error: String(err) }); }
+      setTestStates((prev) => ({ ...prev, [m.id]: { testing: false, success: r.success, latency: r.latency, error: r.error } }));
+    } catch (err) {
+      setTestStates((prev) => ({ ...prev, [m.id]: { testing: false, success: false, error: String(err) } }));
+    }
   };
 
   return (
@@ -122,33 +125,39 @@ export default function ModelsPage() {
             <div className="muted mono" style={{ fontSize: 12 }}>// NO MODELS（点右侧创建）</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((m) => (
-                <div
-                  key={m.id}
-                  className="sb-item"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => startEdit(m)}
-                >
-                  <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                    <span className="sb-name">{m.name}</span>
-                    <Badge state={m.status} />
+              {items.map((m) => {
+                const ts = testStates[m.id];
+                return (
+                  <div
+                    key={m.id}
+                    className="sb-item"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => startEdit(m)}
+                  >
+                    <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <span className="sb-name">{m.name}</span>
+                      <Badge state={m.status} />
+                    </div>
+                    <div className="row wrap" style={{ marginTop: 4, gap: 6 }}>
+                      <span className="mono dim" style={{ fontSize: 11 }}>{m.provider} / {m.modelName}</span>
+                      <span className="mono dim" style={{ fontSize: 11 }}>key {keyMask(m.apiKeyPrefix)}</span>
+                    </div>
+                    <div className="row" style={{ marginTop: 6, gap: 6 }}>
+                      <button className="btn ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void test(m); }} disabled={ts?.testing}>⌁ 测试</button>
+                      <button className="btn danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void remove(m); }}>删除</button>
+                      {ts?.testing ? (
+                        <span className="mono dim" style={{ fontSize: 10, marginLeft: 'auto' }}>测试中…</span>
+                      ) : ts?.success != null ? (
+                        <span className="mono" style={{ fontSize: 10, marginLeft: 'auto', color: ts.success ? 'var(--fxcore-up)' : 'var(--fxcore-down)' }}>
+                          {ts.success ? `✓ ${ts.latency ?? '-'}ms` : `✗ ${ts.error ?? '失败'}`}
+                        </span>
+                      ) : (
+                        <span className="mono dim" style={{ fontSize: 10, marginLeft: 'auto' }}>测试 {fmtTime(m.lastTestAt)}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="row wrap" style={{ marginTop: 4, gap: 6 }}>
-                    <span className="mono dim" style={{ fontSize: 11 }}>{m.provider} / {m.modelName}</span>
-                    <span className="mono dim" style={{ fontSize: 11 }}>key {keyMask(m.apiKeyPrefix)}</span>
-                  </div>
-                  <div className="row" style={{ marginTop: 6, gap: 6 }}>
-                    <button className="btn ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void test(m); }}>⌁ 测试</button>
-                    <button className="btn danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void remove(m); }}>删除</button>
-                    <span className="mono dim" style={{ fontSize: 10, marginLeft: 'auto' }}>测试 {fmtTime(m.lastTestAt)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {testResult && (
-            <div className="mono" style={{ marginTop: 10, fontSize: 12, color: testResult.success ? 'var(--fxcore-up)' : 'var(--fxcore-down)' }}>
-              {testResult.success ? `✓ 连接成功 ${testResult.latency ?? '-'}ms` : `✗ 连接失败 ${testResult.error ?? ''}`}
+                );
+              })}
             </div>
           )}
         </Panel>
