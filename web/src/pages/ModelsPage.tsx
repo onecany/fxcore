@@ -21,7 +21,10 @@ export default function ModelsPage() {
   const [modelName, setModelName] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [temperature, setTemperature] = useState('0.7');
+  const [baseUrl, setBaseUrl] = useState(''); // 仅 custom provider 必填（config.base_url）
   const [testResult, setTestResult] = useState<{ success: boolean; latency?: number; error?: string } | null>(null);
+
+  const isCustom = provider === 'custom';
 
   const load = useCallback(async () => {
     try {
@@ -42,12 +45,13 @@ export default function ModelsPage() {
 
   const startCreate = () => {
     setEditingId(null);
-    setName(''); setProvider(''); setModelName(''); setApiKey(''); setTemperature('0.7'); setTestResult(null); setMsg(null); setError(null);
+    setName(''); setProvider(''); setModelName(''); setApiKey(''); setTemperature('0.7'); setBaseUrl(''); setTestResult(null); setMsg(null); setError(null);
   };
 
   const startEdit = (m: AIModel) => {
     setEditingId(m.id);
     setName(m.name); setProvider(m.provider); setModelName(m.modelName); setApiKey(''); setTemperature(String(m.config?.temperature ?? 0.7));
+    setBaseUrl(typeof m.config?.baseUrl === 'string' ? m.config.baseUrl : '');
     setTestResult(null); setMsg(null); setError(null);
   };
 
@@ -55,13 +59,26 @@ export default function ModelsPage() {
     e.preventDefault();
     if (!name.trim() || !provider || !modelName.trim()) { setError('请填写别名 / 提供商 / 模型'); return; }
     if (!editingId && !apiKey.trim()) { setError('创建模型必须提供 API Key'); return; }
+    // custom provider 必须提供 https base_url（后端 probe 依赖它；config 键经 client toSnake 转 base_url）
+    if (isCustom) {
+      const b = baseUrl.trim();
+      if (!b) { setError('custom 提供商必须填写 Base URL（https://...）'); return; }
+      try {
+        const u = new URL(b);
+        if (u.protocol !== 'https:') { setError('Base URL 必须使用 https 协议'); return; }
+      } catch {
+        setError('Base URL 格式无效，应为 https://host[:port] 或 https://host[:port]/v1'); return;
+      }
+    }
     setBusy(true); setError(null); setMsg(null);
     try {
+      const config: Record<string, unknown> = { temperature: Number(temperature) || 0.7 };
+      if (isCustom) config.baseUrl = baseUrl.trim().replace(/\/+$/, '');
       const req = {
         name: name.trim(), provider: provider as never,
         modelName: modelName.trim(),
         apiKey: apiKey.trim(),
-        config: { temperature: Number(temperature) || 0.7 },
+        config,
       };
       if (editingId) {
         await modelApi.updateModel(editingId, req);
@@ -150,10 +167,19 @@ export default function ModelsPage() {
                 {providers.map((p) => <option key={p.provider} value={p.provider}>{p.provider}</option>)}
               </select>
               <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>模型</label>
-              <select className="prompt-area" value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
-                <option value="">— 选择模型 —</option>
-                {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
-              </select>
+              {isCustom ? (
+                <input
+                  className="prompt-area"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="自定义模型名，如 llama-3.1-8b / gpt-4o-mini"
+                />
+              ) : (
+                <select className="prompt-area" value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
+                  <option value="">— 选择模型 —</option>
+                  {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
+                </select>
+              )}
             </div>
 
             {/* 连接卡 */}
@@ -163,6 +189,20 @@ export default function ModelsPage() {
                 API Key {editingId ? '（留空保留原 Key）' : ''}
               </label>
               <input className="prompt-area" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." autoComplete="off" />
+              {isCustom && (
+                <>
+                  <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>
+                    Base URL <span style={{ color: 'var(--fxcore-down)' }}>（custom 必填，https）</span>
+                  </label>
+                  <input
+                    className="prompt-area"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="https://your-endpoint.example.com/v1"
+                    autoComplete="off"
+                  />
+                </>
+              )}
             </div>
 
             {/* 参数卡 */}
