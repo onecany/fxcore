@@ -62,11 +62,13 @@ type RefreshRequest struct {
 // ========== AI 模型模块 ==========
 
 // CreateModelRequest 创建/更新 AI 模型。api_key 后端 RSA 加密后落库。
+// api_key 无 binding:required——Update 语义是「留空保留原 Key」（service Update 的 `if in.APIKey != ""`），
+// 创建必填校验在 service Create 层做（同一 DTO 双用途，binding 层无法区分）。
 type CreateModelRequest struct {
 	Name      string          `json:"name" binding:"required,max=64"`
 	Provider  string          `json:"provider" binding:"required,max=32"`
 	ModelName string          `json:"model_name" binding:"required,max=128"`
-	APIKey    string          `json:"api_key" binding:"required,max=512"`
+	APIKey    string          `json:"api_key" binding:"max=512"`
 	Config    json.RawMessage `json:"config"` // 温度、TopP 等
 }
 

@@ -45,6 +45,9 @@ var ValidProviders = map[string]bool{
 
 // Create 创建模型：API Key 用 RSA-OAEP 加密后落库（文档 6.2）。
 func (svc *ModelService) Create(userID string, in *dto.CreateModelRequest) (*model.AIModel, *middleware.APIError) {
+	if strings.TrimSpace(in.APIKey) == "" {
+		return nil, middleware.BadRequest("api key required", map[string]string{"api_key": "must be provided on create"})
+	}
 	if !ValidProviders[in.Provider] {
 		return nil, middleware.BadRequest("unsupported provider", map[string]string{"provider": "must be one of deepseek,qwen,claude,gpt,gemini,custom"})
 	}
