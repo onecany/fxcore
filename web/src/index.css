@@ -514,6 +514,7 @@ body::after {
 .data-table td { padding: 10px 12px; border-bottom: 1px solid var(--fxcore-panel-border); color: var(--fxcore-text-dim); }
 .data-table tbody tr { transition: background 0.15s ease; }
 .data-table tbody tr:hover { background: rgba(240, 185, 11, 0.045); }
+.data-table tbody tr.row-active { background: rgba(240, 185, 11, 0.1); }
 .data-table .mono { font-family: var(--fxcore-font-mono); color: var(--fxcore-text); font-size: 12.5px; }
 .data-table .empty { text-align: center; color: var(--fxcore-text-faint); padding: 28px 0; font-family: var(--fxcore-font-mono); }
 
@@ -674,6 +675,71 @@ body::after {
 }
 @media (max-width: 900px) {
   .bt-field-2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ========== 辩论页 ========== */
+/* 参与者 chips（flex 换行分组） */
+.db-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.db-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: 999px;
+  background: var(--fxcore-panel-deep);
+  color: var(--fxcore-text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.db-chip:hover { border-color: var(--fxcore-panel-border-strong); color: var(--fxcore-text); }
+.db-chip.on {
+  border-color: rgba(240, 185, 11, 0.45);
+  background: rgba(240, 185, 11, 0.1);
+  color: var(--fxcore-accent);
+}
+.db-chip input { display: none; }
+/* 详情面板 */
+.db-detail-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+.db-detail-title {
+  font-family: var(--fxcore-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--fxcore-text-faint);
+  margin-bottom: 8px;
+}
+.db-msg {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--fxcore-panel-border);
+}
+.db-vote {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--fxcore-panel-border);
+}
+.db-consensus {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(240, 185, 11, 0.35);
+  border-radius: var(--fxcore-r-sm);
+  background: rgba(240, 185, 11, 0.06);
+  font-size: 12px;
+  color: var(--fxcore-text);
+}
+@media (max-width: 1100px) {
+  .db-detail-cols { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ========== Studio 布局 ========== */

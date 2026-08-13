@@ -10,8 +10,8 @@ import type {
   CreateDebateRequest,
 } from '../types/contract';
 
-export interface SessionWithDetails {
-  session: DebateSession;
+// 会话详情（平铺结构：session 字段 + participants/messages/votes，对齐后端 SessionWithDetailsDTO）
+export interface SessionWithDetails extends DebateSession {
   participants: DebateParticipant[];
   messages: DebateMessage[];
   votes: DebateVote[];
