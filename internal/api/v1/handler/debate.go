@@ -118,7 +118,13 @@ func (h *DebateHandler) Control(c *gin.Context) {
 		middleware.WriteError(c, apiErr)
 		return
 	}
-	middleware.WriteOK[any](c, nil)
+	// 返回控制后的会话详情（对齐前端 Promise<DebateSession>：start/cancel 后状态对前端有用）
+	detail, apiErr2 := h.engine.Get(id, currentUserID(c))
+	if apiErr2 != nil {
+		middleware.WriteError(c, apiErr2)
+		return
+	}
+	middleware.WriteOK(c, detail)
 }
 
 // Execute POST /debates/{id}/execute
@@ -146,7 +152,8 @@ func (h *DebateHandler) Execute(c *gin.Context) {
 		middleware.WriteError(c, apiErr)
 		return
 	}
-	middleware.WriteOK[any](c, nil)
+	// 对齐前端 executeDebate 声明 {executed, message}：共识执行意图已记录（实际开仓由引擎周期跑）
+	middleware.WriteOK(c, map[string]any{"executed": true, "message": "共识执行已记录"})
 }
 
 // Delete DELETE /debates/{id}

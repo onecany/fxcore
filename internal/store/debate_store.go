@@ -97,13 +97,15 @@ func (s *Store) UpdateDebateSession(d *model.DebateSession) {
 	if s.db != nil {
 		s.db.Save(d)
 		s.mu.Lock()
-		s.debateSessions[d.ID] = d
+		cp := *d
+		s.debateSessions[d.ID] = &cp
 		s.mu.Unlock()
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.debateSessions[d.ID] = d
+	cp := *d
+	s.debateSessions[d.ID] = &cp
 }
 
 // DeleteDebateSession 删除会话（含关联参与者/消息/投票）。
