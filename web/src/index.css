@@ -156,6 +156,11 @@ body::after {
 }
 .app-sidebar .brand-wrap .logo { color: var(--fxcore-accent); text-shadow: 0 0 18px rgba(240, 185, 11, 0.45); font-size: 19px; }
 .app-sidebar .brand-wrap .sub { color: var(--fxcore-text-faint); font-size: 10.5px; letter-spacing: 0.22em; }
+.brand-mark {
+  border-radius: 6px;
+  filter: drop-shadow(0 0 10px rgba(240, 185, 11, 0.35));
+  flex-shrink: 0;
+}
 
 /* 侧边导航项（纵向） */
 .app-sidebar .side-nav {

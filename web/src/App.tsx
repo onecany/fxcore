@@ -63,6 +63,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="app-frame">
       <aside className="app-sidebar">
         <div className="brand-wrap">
+          <img src="/fxcore-icon.svg" alt="FXcore" className="brand-mark" width={22} height={22} />
           <span className="logo">{t.brand.name}</span>
           <span className="sub">{t.brand.sub}</span>
         </div>
@@ -169,6 +170,7 @@ function AuthPanel() {
     <div className="app-shell">
       <div className="app-topbar">
         <div className="app-brand">
+          <img src="/fxcore-icon.svg" alt="FXcore" className="brand-mark" width={24} height={24} />
           <span className="logo" style={{ fontSize: 20 }}>{t.brand.name}</span>
           <span className="sub">{t.brand.sub}</span>
         </div>
