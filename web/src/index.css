@@ -654,6 +654,28 @@ body::after {
   background: rgba(240, 185, 11, 0.08);
 }
 
+/* ========== 回测页布局 ========== */
+/* 新建回放：参数 / 时间 / 执行 三列卡 */
+.bt-form-3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+/* 参数卡内字段 2 列网格（压缩高度） */
+.bt-field-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px 10px;
+  margin-top: 8px;
+}
+@media (max-width: 1100px) {
+  .bt-form-3 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .bt-field-2 { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* ========== Studio 布局 ========== */
 .prompt-area {
   width: 100%;
