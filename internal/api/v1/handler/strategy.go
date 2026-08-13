@@ -194,11 +194,12 @@ func (h *StrategyHandler) Delete(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1004 策略不存在"
 // @Router /strategies/{id}/activate [post]
 func (h *StrategyHandler) Activate(c *gin.Context) {
-	if _, apiErr := h.svc.Activate(currentUserID(c), c.Param("id")); apiErr != nil {
+	activated, apiErr := h.svc.Activate(currentUserID(c), c.Param("id"))
+	if apiErr != nil {
 		middleware.WriteError(c, apiErr)
 		return
 	}
-	middleware.WriteOK[any](c, nil)
+	middleware.WriteOK(c, strategyToDTO(activated))
 }
 
 // Duplicate POST /strategies/{id}/duplicate
