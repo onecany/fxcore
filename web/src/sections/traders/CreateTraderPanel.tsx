@@ -1,10 +1,9 @@
 // 创建/编辑交易员（双模式：editing 非空 = 编辑回填）。新用户引导：无模型/策略/交易所时提示先去对应页创建。
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Panel } from '../../components/ui';
 import { ExchangeIcon } from '../../components/exchange-icon';
 import * as traderApi from '../../api/v1/modules/traders';
 import type { TraderResponse, Exchange, RiskConfig, AIModel, ExchangeAccount } from '../../api/v1/types/contract';
-const EXCHANGE_OPTIONS: Exchange[] = ['binance', 'bybit', 'okx', 'bitget', 'gate', 'kucoin', 'hyperliquid', 'aster', 'indodax', 'lighter'];
 
 export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreated }: {
   editing: TraderResponse | null;
@@ -22,6 +21,21 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // 交易所选项 = 已创建账户（去重 type，显示「类型 · 账户名」）；优先启用账户
+  const exchangeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { type: Exchange; label: string }[] = [];
+    // enabled 优先排序，再按 name 排
+    const sorted = [...exchanges].sort((a, b) => (a.enabled === b.enabled ? 0 : a.enabled ? -1 : 1));
+    for (const acc of sorted) {
+      const t = acc.exchangeType as Exchange;
+      if (seen.has(t)) continue;
+      seen.add(t);
+      out.push({ type: t, label: acc.enabled ? `${t} · ${acc.accountName}` : `${t} · ${acc.accountName}（停用）` });
+    }
+    return out;
+  }, [exchanges]);
+
   useEffect(() => {
     if (!editing && models.length > 0) setModelId((cur) => cur || models[0].id);
     void import('../../api/v1/modules/strategies').then((s) =>
@@ -33,9 +47,26 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
     );
   }, [editing, models]);
 
+  // 有已创建账户且当前未选中时，默认选第一个已启用账户
+  useEffect(() => {
+    if (editing) return;
+    if (exchangeOptions.length > 0 && !exchangeOptions.some((o) => o.type === exchange)) {
+      setExchange(exchangeOptions[0].type);
+    }
+  }, [exchangeOptions, exchange, editing]);
+
   const submit = useCallback(async () => {
     if (!name.trim() || !modelId || !strategyId) {
       setMsg('请填写名称并选择模型与策略');
+      return;
+    }
+    if (exchangeOptions.length === 0) {
+      setMsg('尚无交易所账户——请先到 ◐ 交易所 页接入账户');
+      return;
+    }
+    // 所选交易所必须在已创建账户中（不选未接入的类型）
+    if (!exchangeOptions.some((o) => o.type === exchange)) {
+      setMsg('所选交易所未接入账户——请先接入该交易所');
       return;
     }
     setBusy(true);
@@ -62,7 +93,7 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
     } finally {
       setBusy(false);
     }
-  }, [name, exchange, modelId, strategyId, risk, editing, models, onCreated]);
+  }, [name, exchange, modelId, strategyId, risk, editing, models, onCreated, exchangeOptions]);
 
   return (
     <Panel title={editing ? `编辑交易员 · ${editing.name}` : '创建交易员'} className="mb">
@@ -75,8 +106,9 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
           交易所
           <span className="row" style={{ marginTop: 4, gap: 6 }}>
             <ExchangeIcon type={exchange} size={18} />
-            <select className="prompt-area" style={{ flex: 1, marginTop: 0 }} value={exchange} onChange={(e) => setExchange(e.target.value as Exchange)}>
-              {EXCHANGE_OPTIONS.map((x) => <option key={x} value={x}>{x}</option>)}
+            <select className="prompt-area" style={{ flex: 1, marginTop: 0 }} value={exchange} onChange={(e) => setExchange(e.target.value as Exchange)} disabled={exchangeOptions.length === 0}>
+              {exchangeOptions.length === 0 && <option value="">（无交易所账户）</option>}
+              {exchangeOptions.map((o) => <option key={o.type} value={o.type}>{o.label}</option>)}
             </select>
           </span>
         </label>
