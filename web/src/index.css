@@ -1265,6 +1265,86 @@ body::after {
   padding-top: 5px;
 }
 
+/* ========== 交易所类型选择器（自定义下拉：图标 + 名称） ========== */
+.exch-select {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  /* 菜单 absolute 溢出面板底部时，须盖过后继表单字段——自身建立层叠上下文 */
+  z-index: 15;
+}
+.exch-select.open { z-index: 25; }
+.exch-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--fxcore-panel-deep);
+  color: var(--fxcore-text);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+  font-family: var(--fxcore-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  text-align: left;
+}
+.exch-select-trigger:hover { border-color: var(--fxcore-panel-border-strong); }
+.exch-select-trigger.open, .exch-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--fxcore-accent);
+  box-shadow: 0 0 0 1px rgba(240, 185, 11, 0.2), var(--fxcore-glow-accent);
+}
+.exch-select-placeholder { color: var(--fxcore-text-faint); }
+.exch-select-name { font-weight: 500; letter-spacing: 0.03em; white-space: nowrap; }
+.exch-select-type { color: var(--fxcore-text-faint); font-family: var(--fxcore-font-mono); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exch-select-pass { color: var(--fxcore-warn); font-weight: 700; }
+.exch-select-arrow {
+  margin-left: auto;
+  color: var(--fxcore-text-faint);
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+.exch-select-arrow.up { transform: rotate(180deg); }
+.exch-select-menu {
+  position: fixed; /* 脱离 .panel 的 backdrop-filter 层叠上下文，防溢出面板被后续元素覆盖 */
+  z-index: 100; /* 全局层：盖过 panel 及其外的一切 */
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--fxcore-panel);
+  border: 1px solid var(--fxcore-panel-border-strong);
+  border-radius: var(--fxcore-r-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), var(--fxcore-glow-accent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.exch-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--fxcore-r-sm);
+  color: var(--fxcore-text-dim);
+  font-family: var(--fxcore-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+.exch-select-item:hover { background: rgba(240, 185, 11, 0.08); color: var(--fxcore-text); }
+.exch-select-item.selected {
+  background: rgba(240, 185, 11, 0.12);
+  color: var(--fxcore-accent);
+  border-color: var(--fxcore-panel-border-strong);
+}
+
 /* ========== 交易所图标（exchange-icons/ 静态资源） ========== */
 .exchange-icon {
   display: inline-block;

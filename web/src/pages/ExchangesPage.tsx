@@ -5,6 +5,7 @@ import * as exchangeApi from '../api/v1/modules/exchanges';
 import type { ExchangeAccount } from '../api/v1/types/contract';
 import { PageHead, Panel, Alert, StatCard } from '../components/ui';
 import { ExchangeIcon } from '../components/exchange-icon';
+import { ExchangeSelect } from '../components/exchange-select';
 
 interface FormState {
   exchangeType: string;
@@ -115,15 +116,7 @@ export default function ExchangesPage() {
           <div className="form-grid">
             <div className="field">
               <label>交易所类型</label>
-              <div className="row" style={{ gap: 8 }}>
-                <ExchangeIcon type={form.exchangeType} size={20} />
-                <select value={form.exchangeType} onChange={(e) => set('exchangeType', e.target.value)} required>
-                  <option value="">SELECT TYPE</option>
-                  {types.map((t) => (
-                    <option key={t.type} value={t.type}>{t.name} · {t.type}{t.requiresPassphrase ? ' *' : ''}</option>
-                  ))}
-                </select>
-              </div>
+              <ExchangeSelect value={form.exchangeType} options={types} onChange={(v) => set('exchangeType', v)} />
             </div>
             <div className="field">
               <label>账户名称</label>
