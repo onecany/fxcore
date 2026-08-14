@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import * as strategyApi from '../api/v1/modules/strategies';
 import * as modelApi from '../api/v1/modules/models';
-import type { StrategyItem, CoinSourceConfig, CoinSourceType, AIModel, TestRunResult, KlineConfig } from '../api/v1/types/contract';
+import type { StrategyItem, CoinSourceConfig, CoinSourceType, AIModel, TestRunResult, KlineConfig, IndicatorConfig } from '../api/v1/types/contract';
 import { PageHead, Alert, Terminal, Panel } from '../components/ui';
 import { PROFILES, COIN_SOURCE_TYPES, coinsToStr, strToCoins, camelKey, type ProfileDef, type CsEditable } from '../sections/strategies/strategy-data';
 
@@ -135,6 +135,32 @@ export default function StrategiesPage() {
   }, [klineCfg, setKline]);
 
   const klineDirty = draft?.indicators !== undefined;
+
+  // ===== 技术指标开关（EMA/MACD/RSI）：config.indicators 顶层字段 =====
+  // 与 setKline 同模式：基于完整现有 indicators 展开，只 patch 指标字段。
+  const indicatorCfg = useMemo(() => {
+    const d = draft?.indicators as Partial<IndicatorConfig> | undefined;
+    const base = selected?.config?.indicators;
+    return {
+      enableEma: d?.enableEma ?? base?.enableEma ?? false,
+      emaPeriods: d?.emaPeriods ?? base?.emaPeriods ?? [7, 25, 99],
+      enableMacd: d?.enableMacd ?? base?.enableMacd ?? false,
+      enableRsi: d?.enableRsi ?? base?.enableRsi ?? false,
+      rsiPeriods: d?.rsiPeriods ?? base?.rsiPeriods ?? [14],
+    };
+  }, [draft, selected]);
+
+  const setIndicator = useCallback((patch: Partial<IndicatorConfig>) => {
+    setDraft((prev) => {
+      const base = (prev?.indicators as Record<string, unknown> | undefined)
+        ?? (selected?.config?.indicators as Record<string, unknown> | undefined)
+        ?? {};
+      return {
+        ...(prev ?? {}),
+        indicators: { ...base, ...patch },
+      };
+    });
+  }, [selected]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -508,6 +534,67 @@ export default function StrategiesPage() {
                       </span>
                       {klineDirty && (
                         <span style={{ color: 'var(--fxcore-accent)', fontSize: 11 }}>● 已编辑，未保存</span>
+                      )}
+                    </div>
+                    {/* 技术指标开关（EMA/MACD/RSI）：config.indicators 顶层字段 */}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fxcore-text-dim)', margin: '16px 0 6px' }}>
+                      ▶ 技术指标（EMA / MACD / RSI）
+                    </div>
+                    <div className="field" style={{ marginBottom: 8 }}>
+                      <label className="checkbox-row" style={{ gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={indicatorCfg.enableEma}
+                          onChange={(e) => setIndicator({ enableEma: e.target.checked })}
+                        /> EMA 指数均线
+                      </label>
+                      {indicatorCfg.enableEma && (
+                        <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                          <input
+                            type="text"
+                            value={indicatorCfg.emaPeriods.join(',')}
+                            placeholder="7,25,99"
+                            onChange={(e) => {
+                              const periods = e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0);
+                              setIndicator({ emaPeriods: periods });
+                            }}
+                            style={{ width: 150 }}
+                          />
+                          <span className="dim mono" style={{ fontSize: 11 }}>周期（逗号分隔）</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="field" style={{ marginBottom: 8 }}>
+                      <label className="checkbox-row" style={{ gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={indicatorCfg.enableMacd}
+                          onChange={(e) => setIndicator({ enableMacd: e.target.checked })}
+                        /> MACD 指标
+                      </label>
+                    </div>
+                    <div className="field" style={{ marginBottom: 4 }}>
+                      <label className="checkbox-row" style={{ gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={indicatorCfg.enableRsi}
+                          onChange={(e) => setIndicator({ enableRsi: e.target.checked })}
+                        /> RSI 相对强弱
+                      </label>
+                      {indicatorCfg.enableRsi && (
+                        <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                          <input
+                            type="text"
+                            value={indicatorCfg.rsiPeriods.join(',')}
+                            placeholder="14"
+                            onChange={(e) => {
+                              const periods = e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0);
+                              setIndicator({ rsiPeriods: periods });
+                            }}
+                            style={{ width: 150 }}
+                          />
+                          <span className="dim mono" style={{ fontSize: 11 }}>周期（逗号分隔）</span>
+                        </div>
                       )}
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fxcore-text-dim)', margin: '4px 0 6px' }}>
