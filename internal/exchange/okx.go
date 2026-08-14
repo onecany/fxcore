@@ -394,7 +394,9 @@ func (a *OKXAdapter) request(ctx context.Context, method, path string, payload a
 			return fmt.Errorf("%w: %v", ErrParams, err)
 		}
 	}
-	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	// OK-ACCESS-TIMESTAMP 必须是 ISO 8601 UTC（如 2020-12-08T09:08:57.715Z），
+	// 不能是 Unix 毫秒数字符串——OKX 解析毫秒数字会判 50102 Timestamp request expired。
+	ts := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
 	pathOnly := path
 	if i := strings.Index(path, "?"); i >= 0 {
 		pathOnly = path[:i]

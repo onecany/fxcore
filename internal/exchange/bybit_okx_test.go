@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // readAllBody 读取请求体。
@@ -120,6 +121,11 @@ func TestOKXSignedHeaders(t *testing.T) {
 	}
 	if gotKey != "k" || gotPass != "pp" || gotTs == "" || gotSig == "" {
 		t.Errorf("headers missing: key=%s pass=%s ts=%s sig=%s", gotKey, gotPass, gotTs, gotSig)
+	}
+	// OK-ACCESS-TIMESTAMP 必须 ISO 8601 UTC（如 2020-12-08T09:08:57.715Z）；
+	// 纯数字（毫秒）会被 OKX 判 50102 Timestamp request expired（回归锁定）。
+	if _, err := time.Parse("2006-01-02T15:04:05.000Z", gotTs); err != nil {
+		t.Errorf("OK-ACCESS-TIMESTAMP 不是 ISO 8601 UTC 格式: %q", gotTs)
 	}
 }
 
