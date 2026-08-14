@@ -1,25 +1,32 @@
 package handler
 
 import (
+	"context"
+	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"fxcore/internal/api/v1/dto"
 	"fxcore/internal/api/v1/service"
 	"fxcore/internal/kernel"
+	"fxcore/internal/llm"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
 )
 
-// StrategyHandler 策略 CRUD + 生效/复制 + 默认配置 + 提示词预览/试跑骨架。
-// 见 API设计.md §11 strategies 路由。preview-prompt/test-run 的完整实现
-// 依赖 kernel 提示词构建与 AI 客户端（阶段 3），此处提供基于配置的基础骨架。
+// StrategyHandler 策略 CRUD + 生效/复制 + 默认配置 + 提示词预览/AI 试跑。
+// 见 API设计.md §11 strategies 路由。preview-prompt 构建提示词（kernel），
+// test-run 真实调 AI（llm.Client + llm.ModelProvider 组装层注入）。
 type StrategyHandler struct {
-	svc *service.StrategyService
+	svc    *service.StrategyService
+	msvc   *service.ModelService // 模型归属校验（TestRun 用）
+	ai     *llm.Client
+	models llm.ModelProvider // 解密后的模型配置
 }
 
 // NewStrategyHandler 构造策略处理器。
-func NewStrategyHandler(svc *service.StrategyService) *StrategyHandler {
-	return &StrategyHandler{svc: svc}
+func NewStrategyHandler(svc *service.StrategyService, msvc *service.ModelService, ai *llm.Client, models llm.ModelProvider) *StrategyHandler {
+	return &StrategyHandler{svc: svc, msvc: msvc, ai: ai, models: models}
 }
 
 // List GET /strategies?page=&size=&fields=
@@ -246,13 +253,18 @@ func (h *StrategyHandler) PreviewPrompt(c *gin.Context) {
 }
 
 // TestRun POST /strategies/test-run
-// TestRun AI 试跑分析。骨架：返回空决策数组（阶段 3 接入 AI 客户端后填充）。
+// TestRun AI 试跑：用指定模型跑当前配置构建的提示词，返回原始输出 + 解析决策。
 // @Summary AI 试跑分析
+// @Description 按 config 构建系统提示词（kernel.BuildSystemPrompt），调 model_id 指定的 AI 模型，解析六值决策。AI 调用失败返 1301/1302；解析失败不报错，返回 parsed=false + raw 原始输出
 // @Tags strategies
 // @Accept json
 // @Produce json
-// @Param body body dto.TestRunRequest true "策略配置"
-// @Success 200 {object} dto.ApiResponse[[]dto.DecisionAction]
+// @Param body body dto.TestRunRequest true "策略配置 + 模型 ID"
+// @Success 200 {object} dto.ApiResponse[dto.TestRunResponse]
+// @Failure 400 {object} dto.ErrorResponse "1001 参数错误"
+// @Failure 404 {object} dto.ErrorResponse "1004 模型不存在"
+// @Failure 503 {object} dto.ErrorResponse "1301 AI 服务失败"
+// @Failure 504 {object} dto.ErrorResponse "1302 AI 服务超时"
 // @Router /strategies/test-run [post]
 func (h *StrategyHandler) TestRun(c *gin.Context) {
 	var req dto.TestRunRequest
@@ -260,8 +272,57 @@ func (h *StrategyHandler) TestRun(c *gin.Context) {
 		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
 		return
 	}
-	_ = req
-	middleware.WriteOK(c, []model.DecisionAction{})
+	// 模型归属校验（越权视同不存在）
+	m, apiErr := h.msvc.Get(req.ModelID, currentUserID(c))
+	if apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
+	// 解密 API Key（llm.ModelProvider 从 store 取配置 + RSA 解密）
+	// 模型存在但 GetModel=false = RSA 解密失败（key 损坏/私钥不匹配/假数据占位 key）
+	lm, ok := h.models.GetModel(m.ID)
+	if !ok {
+		middleware.WriteError(c, middleware.Internal("decrypt stored api key failed: resolve model config returned false"))
+		return
+	}
+	// 构建系统提示词（与 preview-prompt 同一路径）
+	cfg := service.DefaultConfig()
+	if apiErr := service.MergeConfigInto(&cfg, req.Config); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
+	prompt := kernel.BuildSystemPrompt(cfg)
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
+	defer cancel()
+	res, err := h.ai.Chat(ctx, lm, llm.ChatRequest{
+		Messages: []llm.Message{
+			{Role: "system", Content: prompt},
+			{Role: "user", Content: "Analyze the current market and output your decision."},
+		},
+		Temperature: 0.3,
+		MaxTokens:   2048,
+	})
+	if err != nil {
+		if err == llm.ErrTimeout {
+			middleware.WriteError(c, middleware.AITimeout("AI provider timeout: "+err.Error()))
+			return
+		}
+		middleware.WriteError(c, middleware.AIFailed("AI provider failed: "+err.Error()))
+		return
+	}
+	actions, parseErr := kernel.ParseDecision(res.Content)
+	out := dto.TestRunResponse{
+		Prompt:    prompt,
+		Raw:       res.Content,
+		Decisions: actions,
+		Parsed:    parseErr == nil,
+		LatencyMS: res.LatencyMS,
+	}
+	if parseErr != nil {
+		out.Error = parseErr.Error()
+	}
+	middleware.WriteOK(c, out)
 }
 
 // Public GET /strategies/public

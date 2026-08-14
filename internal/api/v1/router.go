@@ -138,7 +138,8 @@ func NewRouter(d Deps) *gin.Engine {
 		write := authed.Group("", middleware.RateLimit(d.Limiter, "write"), middleware.RequireSignature(d.Store, d.Nonces))
 
 		// --- AI 模型 ---
-		modelH := handler.NewModelHandler(service.NewModelService(d.Store, d.KeyManager))
+		modelSvc := service.NewModelService(d.Store, d.KeyManager)
+	modelH := handler.NewModelHandler(modelSvc)
 		read.GET("/models", modelH.List)
 		read.GET("/models/providers", modelH.Providers)
 		write.POST("/models", modelH.Create)
@@ -173,7 +174,7 @@ func NewRouter(d Deps) *gin.Engine {
 		write.DELETE("/exchanges/:id", exchangeH.Delete)
 
 		// --- 策略（§11 strategies 路由；静态路由先于 :id 注册，gin 静态优先） ---
-		strategyH := handler.NewStrategyHandler(service.NewStrategyService(d.Store))
+		strategyH := handler.NewStrategyHandler(service.NewStrategyService(d.Store), modelSvc, d.AI, d.Models)
 		read.GET("/strategies", strategyH.List)
 		read.GET("/strategies/active", strategyH.GetActive)
 		read.GET("/strategies/default-config", strategyH.GetDefaultConfig)
