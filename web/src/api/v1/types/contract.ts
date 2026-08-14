@@ -243,6 +243,16 @@ export interface DecisionRecord {
   errorMessage?: string; aiRequestDurationMs?: number;
 }
 
+/** AI 试跑结果（POST /strategies/test-run；解析失败时 parsed=false + raw 原始输出保留） */
+export interface TestRunResult {
+  prompt: string;
+  raw: string;
+  decisions: DecisionAction[];
+  parsed: boolean;
+  latencyMs: number;
+  error?: string;
+}
+
 // ========== §15 交易运行时数据 ==========
 /** 权益点（后端 EquityPointDTO：timestamp=Unix秒） */
 export interface EquitySnapshot {
