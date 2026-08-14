@@ -128,8 +128,6 @@ web/src/
 
 **页面**（7 路由）：`/dashboard`（交易终端）· `/traders`（编队）· `/exchanges`（接入）· `/models`（模型）· `/strategies`（策略）· `/backtest`（回放）· `/debate`（辩论）
 
-**设计系统**：Neo-Gold 深色主题，CSS 变量令牌 `--fxcore-*`（`index.css` 的 `:root`），绿涨红跌（`--fxcore-up` / `--fxcore-down`）。用户可见文案走 i18n 键，不暴露内部实现术语。
-
 **数据契约**：后端 snake_case ↔ 前端 camelCase，归一化收敛在 `api/v1/client.ts` 单点。页面组件不直接接触原始响应。
 
 ## 验证命令 / Verification
