@@ -684,11 +684,11 @@ export default function StrategiesPage() {
                     {testResult && (
                       <div style={{ marginTop: 12 }}>
                         {testResult.parsed ? (
-                          <Alert kind="ok">✓ 解析成功 · {testResult.decisions.length} 条决策 · {testResult.latencyMs}ms</Alert>
+                          <Alert kind="ok">✓ 解析成功 · {(testResult.decisions ?? []).length} 条决策 · {testResult.latencyMs}ms</Alert>
                         ) : (
                           <Alert kind="warn">⚠ 解析失败：{testResult.error ?? 'AI 输出无法解析为六值决策'}（原始输出见下，可检查提示词约束）</Alert>
                         )}
-                        {testResult.decisions.length > 0 && (
+                        {(testResult.decisions ?? []).length > 0 && (
                           <div className="table-wrap" style={{ marginTop: 10 }}>
                             <table>
                               <thead>
@@ -697,7 +697,7 @@ export default function StrategiesPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {testResult.decisions.map((d, i) => (
+                                {(testResult.decisions ?? []).map((d, i) => (
                                   <tr key={i}>
                                     <td className="mono">{d.action}</td>
                                     <td>{d.symbol}</td>

@@ -247,7 +247,8 @@ export interface DecisionRecord {
 export interface TestRunResult {
   prompt: string;
   raw: string;
-  decisions: DecisionAction[];
+  // 解析失败时后端可能返回 null（防御：前端用 ?? [] 兜底）
+  decisions?: DecisionAction[];
   parsed: boolean;
   latencyMs: number;
   error?: string;

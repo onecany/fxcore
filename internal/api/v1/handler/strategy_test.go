@@ -175,6 +175,16 @@ func TestStrategyTestRunParseFailed(t *testing.T) {
 	if env.Data.Error == "" {
 		t.Fatalf("want error message on parse failure")
 	}
+	// 契约锁：解析失败时 decisions 必须是 [] 而非 null（前端读 decisions.length 不崩）
+	if env.Data.Decisions == nil {
+		t.Fatalf("decisions must be empty array (not null) on parse failure, body: %s", w.Body.String())
+	}
+	if len(env.Data.Decisions) != 0 {
+		t.Fatalf("want 0 decisions on parse failure, got %d", len(env.Data.Decisions))
+	}
+	if !contains(w.Body.String(), `"decisions":[]`) {
+		t.Fatalf("JSON must serialize decisions as [], body: %s", w.Body.String())
+	}
 }
 
 // 模型不存在 → 1004。

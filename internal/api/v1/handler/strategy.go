@@ -338,6 +338,11 @@ func (h *StrategyHandler) TestRun(c *gin.Context) {
 		return
 	}
 	actions, parseErr := kernel.ParseDecision(res.Content)
+	// 解析失败时 actions 为 nil——JSON 序列化会输出 `decisions: null`（Go nil slice 坑），
+	// 前端直接读 decisions.length 崩溃。保证契约稳定：失败返回空数组（2026-08 实测 TypeError 实锤）。
+	if parseErr != nil && actions == nil {
+		actions = []model.DecisionAction{}
+	}
 	out := dto.TestRunResponse{
 		Prompt:    prompt,
 		Raw:       res.Content,
