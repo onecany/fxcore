@@ -59,3 +59,15 @@ export function setExchangeEnabled(id: string, enabled: boolean): Promise<Exchan
 export function getRsaKey(): Promise<ApiResponse<{ publicKey: string }>> {
   return client.get<ApiResponse<{ publicKey: string }>>('/crypto/public-key');
 }
+
+/** 各交易所账户余额（实时查询各所账户 API；失败项 balance=null + error） */
+export interface ExchangeBalance {
+  exchangeType: string;
+  accountName: string;
+  balance: number | null;
+  currency: string;
+  error?: string;
+}
+export function listBalances(): Promise<ExchangeBalance[]> {
+  return client.get<ExchangeBalance[]>('/exchanges/balances');
+}

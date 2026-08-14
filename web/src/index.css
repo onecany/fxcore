@@ -682,6 +682,48 @@ body::after {
   .bt-field-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ========== 交易所余额横条（交易终端顶部） ========== */
+.exb-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.exb-total {
+  display: flex;
+  flex-direction: column;
+  padding-right: 18px;
+  border-right: 1px solid var(--fxcore-panel-border);
+}
+.exb-total-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fxcore-accent);
+}
+.exb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+  background: var(--fxcore-panel-deep);
+}
+.exb-name {
+  font-size: 11px;
+  color: var(--fxcore-text-dim);
+}
+.exb-bal {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+}
+.exb-item .exb-bal.err {
+  color: var(--fxcore-down);
+  font-size: 10px;
+  font-weight: 400;
+}
+
 /* ========== 辩论页 ========== */
 /* 参与者 chips（flex 换行分组） */
 .db-participants {

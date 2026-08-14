@@ -9,6 +9,7 @@ import { fmtUsd, fmtPct, fmtDur } from '../utils/format';
 import { useTraderTerminal, realizedOf } from './dashboard/useTraderTerminal';
 import { UP, DOWN, TmCard, RiskCard, PhStat, CfgRow, EquityCurve } from './dashboard/primitives';
 import { DecisionCard, fmtClock, pnlColor, fmtSharpe } from './dashboard/exec-log';
+import { ExchangeBalances } from './dashboard/exchange-balances';
 
 export default function TraderDashboardSection() {
   const [traderId, setTraderId] = useTraderIdFromURL();
@@ -39,6 +40,9 @@ export default function TraderDashboardSection() {
         lead={<>交易员详情 · URL <code>?trader=</code> 直达 · 实时刷新</>}
       />
       {error && <div className="alert error">{error}</div>}
+
+      {/* 交易所余额横条（全局账户级，不依赖具体交易员） */}
+      <ExchangeBalances />
 
       {/* 顶栏：orchestration select + 名称 ID + 状态 */}
       <div className="row wrap" style={{ gap: 12, marginBottom: 14 }}>
@@ -108,7 +112,7 @@ export default function TraderDashboardSection() {
         <RiskCard label="MAX DRAWDOWN" value={maxDd < 0.05 ? 'Calm' : maxDd < 0.15 ? 'Watch' : 'Alert'} sub={`${fmtPct(maxDd)} peak drawdown`} />
         <RiskCard label="POSITIONS" value={`${positions.length}`} sub={`${positions.length} held / cap`} />
         <RiskCard label="UNREALIZED PNL" value={fmtUsd(unrealizedPnl, true)} color={pnlColor(unrealizedPnl)} />
-        <RiskCard label="AVAILABLE" value={fmtUsd(equity?.balance)} sub={`${fmtPct(equity?.marginUsedPct)} 占用`} />
+        <RiskCard label="AVAILABLE" value={equity?.balance != null ? fmtUsd(equity.balance) : '0.00'} sub={equity?.balance != null ? `${fmtPct(equity.marginUsedPct)} 占用` : '暂无权益快照（未运行）'} />
       </div>
 
       {/* 非对称主次：主列（持仓+执行日志）宽，辅助列（权益+配置）窄 */}
