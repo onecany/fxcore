@@ -258,24 +258,35 @@ func (e *Engine) decide(ctx context.Context, t *model.Trader, adapter exchange.A
 	for _, p := range positions {
 		posLines = append(posLines, fmt.Sprintf("%s %s qty=%.4f entry=%.4f", p.Symbol, p.Side, p.Quantity, p.EntryPrice))
 	}
-	var klinesSummary string
+	var userContext string
 	if e.klines != nil && len(symbols) > 0 {
-		ks, _ := e.klines.Klines(ctx, symbols[0], "15m", 20)
+		// 按 config 的周期/数量拉取真实 K 线，计算指标后作为 user 上下文（2026-08 修复：
+		// 原实现只取 20 根最后一根收盘价摘要，EMA/MACD/RSI 开关与周期从未生效）
+		tf := cfg.Indicators.Klines.PrimaryTimeframe
+		if tf == "" {
+			tf = "15m"
+		}
+		count := cfg.Indicators.Klines.PrimaryCount
+		if count <= 0 {
+			count = 200
+		}
+		ks, _ := e.klines.Klines(ctx, symbols[0], tf, count)
 		if len(ks) > 0 {
-			last := ks[len(ks)-1]
-			klinesSummary = fmt.Sprintf("%s last close=%.4f h=%.4f l=%.4f", symbols[0], last.Close, last.High, last.Low)
+			userContext = kernel.BuildUserContext(balance, posLines, kernel.BuildKlineContext(ks, cfg))
 		}
 	}
-	user := kernel.BuildUserContext(balance, posLines, klinesSummary)
+	if userContext == "" {
+		userContext = kernel.BuildUserContext(balance, posLines, "")
+	}
 
 	rec := &model.DecisionRecord{
 		TraderID:     t.ID,
 		Timestamp:    time.Now().UTC(),
 		SystemPrompt: system,
-		InputPrompt:  user,
+		InputPrompt:  userContext,
 	}
 	res, err := e.ai.Chat(ctx, m, llm.ChatRequest{
-		Messages:    []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: user}},
+		Messages:    []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: userContext}},
 		Temperature: 0.3,
 		MaxTokens:   2048,
 	})

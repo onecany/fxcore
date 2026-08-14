@@ -174,7 +174,7 @@ func NewRouter(d Deps) *gin.Engine {
 		write.DELETE("/exchanges/:id", exchangeH.Delete)
 
 		// --- 策略（§11 strategies 路由；静态路由先于 :id 注册，gin 静态优先） ---
-		strategyH := handler.NewStrategyHandler(service.NewStrategyService(d.Store), modelSvc, d.AI, d.Models)
+		strategyH := handler.NewStrategyHandler(service.NewStrategyService(d.Store), modelSvc, d.AI, d.Models, d.Klines)
 		read.GET("/strategies", strategyH.List)
 		read.GET("/strategies/active", strategyH.GetActive)
 		read.GET("/strategies/default-config", strategyH.GetDefaultConfig)

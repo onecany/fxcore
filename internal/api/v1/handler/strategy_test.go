@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -29,13 +30,18 @@ func (f *strategyFakeModels) GetModel(id string) (*llm.Model, bool) {
 }
 
 // strategyFakeAI 可配置响应体的 RoundTripper（带 10ms 延迟，让 latency 断言非零）。
+// lastBody 记录最近一次请求体（断言 user 消息含市场数据用）。
 type strategyFakeAI struct {
-	status int
-	body   string
+	status   int
+	body     string
+	lastBody string
 }
 
 func (f *strategyFakeAI) RoundTrip(req *http.Request) (*http.Response, error) {
 	time.Sleep(10 * time.Millisecond)
+	if b, err := io.ReadAll(req.Body); err == nil {
+		f.lastBody = string(b)
+	}
 	return &http.Response{
 		StatusCode: f.status,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -43,9 +49,10 @@ func (f *strategyFakeAI) RoundTrip(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-// strategyTestEnv 组装完整 handler 依赖（内存 store + fake models + fake AI）。
+// strategyTestEnv 组装完整 handler 依赖（内存 store + fake models + fake AI + fake klines）。
 // store 里同步建 m1 模型（归属校验走 store；llm.ModelProvider 只负责解密 key）。
-func strategyTestEnv(t *testing.T, aiBody string) (*StrategyHandler, *store.Store) {
+// 返回 handler、store、fakeAI（断言 user 消息内容用）。
+func strategyTestEnv(t *testing.T, aiBody string) (*StrategyHandler, *store.Store, *strategyFakeAI) {
 	t.Helper()
 	st, err := store.New(store.Config{AdminEmail: "a@b.c", AdminPassword: "pw"}, nil)
 	if err != nil {
@@ -62,11 +69,28 @@ func strategyTestEnv(t *testing.T, aiBody string) (*StrategyHandler, *store.Stor
 	models := &strategyFakeModels{models: map[string]*llm.Model{
 		"m1": {Provider: "gpt", ModelName: "gpt-4o", APIKey: "sk-test"},
 	}}
-	ai := llm.NewWithTransport(&strategyFakeAI{status: 200, body: aiBody}, 5*time.Second)
+	fai := &strategyFakeAI{status: 200, body: aiBody}
+	ai := llm.NewWithTransport(fai, 5*time.Second)
 	msvc := service.NewModelService(st, nil)
-	h := NewStrategyHandler(service.NewStrategyService(st), msvc, ai, models)
-	return h, st
+	h := NewStrategyHandler(service.NewStrategyService(st), msvc, ai, models, &strategyFakeKlines{})
+	return h, st, fai
 }
+
+// strategyFakeKlines 返回固定 K 线（20 根升序，便于断言 user 消息含市场数据）。
+type strategyFakeKlines struct{}
+
+func (f *strategyFakeKlines) Klines(ctx context.Context, symbol, interval string, limit int) ([]dto.KlineDTO, error) {
+	out := make([]dto.KlineDTO, 0, 20)
+	for i := 0; i < 20; i++ {
+		out = append(out, dto.KlineDTO{
+			Timestamp: int64(1700000000 + i*60),
+			Open:      100, High: 101, Low: 99, Close: 100 + float64(i)*0.1, Volume: 1000,
+		})
+	}
+	return out, nil
+}
+
+func (f *strategyFakeKlines) Name() string { return "fake" }
 
 func strategyRouter(h *StrategyHandler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -80,10 +104,10 @@ func testRunReq(modelID string) string {
 	return `{"config":{"strategy_type":"ai","language":"zh","coin_source":{"source_type":"static","static_coins":["BTC-USDT"]},"risk_control":{"max_positions":3}},"model_id":"` + modelID + `"}`
 }
 
-// 成功路径：AI 返回合法 XML 决策 → parsed=true + 决策数组 + prompt 非空。
+// 成功路径：AI 返回合法 XML 决策 → parsed=true + 决策数组 + prompt 非空 + user 消息含市场数据。
 func TestStrategyTestRunParsed(t *testing.T) {
 	aiBody := `{"choices":[{"message":{"content":"<reasoning>bullish trend</reasoning><decision>[{\"action\":\"open_long\",\"symbol\":\"BTC-USDT\",\"quantity\":0.01,\"leverage\":5,\"confidence\":80}]</decision>"}}]}`
-	h, _ := strategyTestEnv(t, aiBody)
+	h, _, fai := strategyTestEnv(t, aiBody)
 	r := strategyRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/strategies/test-run", strings.NewReader(testRunReq("m1")))
@@ -115,12 +139,17 @@ func TestStrategyTestRunParsed(t *testing.T) {
 	if env.Data.LatencyMS <= 0 {
 		t.Fatalf("want latency>0, got %d", env.Data.LatencyMS)
 	}
+	// user 消息必须含真实 K 线数据（2026-08 修复：此前是硬编码空话）——由 fakeAI.lastBody 断言，
+	// 具体消息内容格式由 kernel.BuildKlineContext 单测覆盖
+	if !contains(fai.lastBody, "Market data") {
+		t.Fatalf("user message missing market data, got: %s", fai.lastBody)
+	}
 }
 
 // 解析失败路径：AI 输出非决策文本 → 200 + parsed=false + raw 保留 + error 说明。
 func TestStrategyTestRunParseFailed(t *testing.T) {
 	aiBody := `{"choices":[{"message":{"content":"I think BTC will go up but I am not sure."}}]}`
-	h, _ := strategyTestEnv(t, aiBody)
+	h, _, _ := strategyTestEnv(t, aiBody)
 	r := strategyRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/strategies/test-run", strings.NewReader(testRunReq("m1")))
@@ -150,7 +179,7 @@ func TestStrategyTestRunParseFailed(t *testing.T) {
 
 // 模型不存在 → 1004。
 func TestStrategyTestRunModelNotFound(t *testing.T) {
-	h, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
+	h, _, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
 	r := strategyRouter(h)
 
 	req := httptest.NewRequest(http.MethodPost, "/strategies/test-run", strings.NewReader(testRunReq("ghost")))
@@ -172,7 +201,7 @@ func TestStrategyTestRunModelNotFound(t *testing.T) {
 
 // AI 服务失败 → 1301。
 func TestStrategyTestRunAIError(t *testing.T) {
-	h, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
+	h, _, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
 	h.ai = llm.NewWithTransport(&strategyFakeAI{status: 500, body: `{"error":{"message":"boom"}}`}, 5*time.Second)
 	r := strategyRouter(h)
 
@@ -195,7 +224,7 @@ func TestStrategyTestRunAIError(t *testing.T) {
 
 // 越权模型（他人模型）→ 404（归属校验；无 claims 时 currentUserID 回退 "single-user"，与 m-other 的属主不匹配）。
 func TestStrategyTestRunModelOwnership(t *testing.T) {
-	h, st := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
+	h, st, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
 	// 造一个属于他人（user-other）的模型，验证 TestRun 以 single-user 访问返回 404
 	st.CreateModel(&model.AIModel{
 		ID:        "m-other",
@@ -219,7 +248,7 @@ func TestStrategyTestRunModelOwnership(t *testing.T) {
 
 // 参数校验：缺 model_id → 1001。
 func TestStrategyTestRunMissingModelID(t *testing.T) {
-	h, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
+	h, _, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
 	r := strategyRouter(h)
 
 	body := `{"config":{"strategy_type":"ai"}}`

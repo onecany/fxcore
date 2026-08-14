@@ -126,7 +126,7 @@ func TestIsolationDebateForeign(t *testing.T) {
 
 // strategy：他人策略 Get/Update/Delete/Activate/Duplicate → 404。
 func TestIsolationStrategyForeign(t *testing.T) {
-	h, st := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
+	h, st, _ := strategyTestEnv(t, `{"choices":[{"message":{"content":"x"}}]}`)
 	st.CreateStrategy(&model.Strategy{ID: "s-other", UserID: "user-other", Name: "theirs", Config: []byte(`{}`)})
 
 	gin.SetMode(gin.TestMode)

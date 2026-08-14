@@ -12,21 +12,23 @@ import (
 	"fxcore/internal/llm"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
+	"fxcore/internal/provider"
 )
 
 // StrategyHandler 策略 CRUD + 生效/复制 + 默认配置 + 提示词预览/AI 试跑。
 // 见 API设计.md §11 strategies 路由。preview-prompt 构建提示词（kernel），
-// test-run 真实调 AI（llm.Client + llm.ModelProvider 组装层注入）。
+// test-run 真实调 AI（llm.Client + llm.ModelProvider + K 线数据源链组装层注入）。
 type StrategyHandler struct {
 	svc    *service.StrategyService
 	msvc   *service.ModelService // 模型归属校验（TestRun 用）
 	ai     *llm.Client
 	models llm.ModelProvider // 解密后的模型配置
+	klines provider.KlineProvider // 数据源链（AI 试跑拉真实 K 线 + 指标）
 }
 
 // NewStrategyHandler 构造策略处理器。
-func NewStrategyHandler(svc *service.StrategyService, msvc *service.ModelService, ai *llm.Client, models llm.ModelProvider) *StrategyHandler {
-	return &StrategyHandler{svc: svc, msvc: msvc, ai: ai, models: models}
+func NewStrategyHandler(svc *service.StrategyService, msvc *service.ModelService, ai *llm.Client, models llm.ModelProvider, klines provider.KlineProvider) *StrategyHandler {
+	return &StrategyHandler{svc: svc, msvc: msvc, ai: ai, models: models, klines: klines}
 }
 
 // List GET /strategies?page=&size=&fields=
@@ -293,12 +295,36 @@ func (h *StrategyHandler) TestRun(c *gin.Context) {
 	}
 	prompt := kernel.BuildSystemPrompt(cfg)
 
+	// 拉真实 K 线 + 计算技术指标，作为 user 上下文（2026-08 修复：原实现 user 消息
+	// 是硬编码 "Analyze the current market..."，AI 拿不到任何市场数据）
+	symbol := ""
+	if len(cfg.CoinSource.StaticCoins) > 0 {
+		symbol = cfg.CoinSource.StaticCoins[0]
+	} else {
+		symbol = "BTC-USDT" // 引擎 candidateSymbols 同款兜底
+	}
+	userContent := "Analyze the current market and output your decision."
+	if h.klines != nil {
+		tf := cfg.Indicators.Klines.PrimaryTimeframe
+		if tf == "" {
+			tf = "15m"
+		}
+		count := cfg.Indicators.Klines.PrimaryCount
+		if count <= 0 {
+			count = 200
+		}
+		ks, err := h.klines.Klines(c.Request.Context(), symbol, tf, count)
+		if err == nil && len(ks) > 0 {
+			userContent = kernel.BuildUserContext(0, nil, kernel.BuildKlineContext(ks, cfg))
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
 	defer cancel()
 	res, err := h.ai.Chat(ctx, lm, llm.ChatRequest{
 		Messages: []llm.Message{
 			{Role: "system", Content: prompt},
-			{Role: "user", Content: "Analyze the current market and output your decision."},
+			{Role: "user", Content: userContent},
 		},
 		Temperature: 0.3,
 		MaxTokens:   2048,
