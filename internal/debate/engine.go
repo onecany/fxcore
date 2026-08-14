@@ -192,8 +192,9 @@ func (e *Engine) Start(userID, id string) *middleware.APIError {
 	s.meta.Status = dto.DebateRunning
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 
 	go e.debateLoop(ctx, id)
 	return nil
@@ -218,8 +219,9 @@ func (e *Engine) Cancel(userID, id string) *middleware.APIError {
 	if s.cancel != nil {
 		s.cancel()
 	}
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 	e.broadcast(id, Event{Type: EventError, Data: map[string]string{"message": "debate cancelled"}})
 	return nil
 }
@@ -244,8 +246,9 @@ func (e *Engine) Execute(id, traderID string) *middleware.APIError {
 	// 记录执行意图（trader 关联）
 	s.mu.Lock()
 	s.meta.TraderID = traderID
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 	return nil
 }
 
@@ -358,10 +361,12 @@ func (e *Engine) setStatus(id string, status string) {
 	if s == nil {
 		return
 	}
+	// 锁内构造副本再解锁落库（与 setRound 同：store 序列化读副本，不与并发写 s.meta 竞态）
 	s.mu.Lock()
 	s.meta.Status = status
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 }
 
 // ========== DTO 转换 ==========

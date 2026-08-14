@@ -93,8 +93,9 @@ func (e *Engine) debateLoop(ctx context.Context, id string) {
 	s.mu.Lock()
 	s.consensus = consensus
 	s.meta.Status = dto.DebateCompleted
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 	e.broadcast(id, Event{Type: EventConsensus, Data: consensus})
 
 	// 自动执行（仅 open 共识）
@@ -235,10 +236,12 @@ func (e *Engine) setRound(id string, round int) {
 	if s == nil {
 		return
 	}
+	// 锁内构造副本再解锁落库：store 序列化读副本，不与下一轮持锁写 s.meta 竞态
 	s.mu.Lock()
 	s.meta.CurrentRound = round
+	cp := *s.meta
 	s.mu.Unlock()
-	e.store.UpdateDebateSession(s.meta)
+	e.store.UpdateDebateSession(&cp)
 }
 
 // buildSpeakerPrompt 发言提示词（人格 + 历史上下文）。
