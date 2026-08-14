@@ -66,8 +66,9 @@ export function DecisionCard({ d }: { d: DecisionRecord }) {
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {d.systemPrompt && <PromptBlock label="SYSTEM PROMPT" text={d.systemPrompt} />}
           {d.inputPrompt && <PromptBlock label="USER PROMPT" text={d.inputPrompt} />}
+          {d.rawResponse && <PromptBlock label="RAW RESPONSE" text={d.rawResponse} />}
           {d.cotTrace && <PromptBlock label="CHAIN OF THOUGHT" text={d.cotTrace} />}
-          {!d.systemPrompt && !d.inputPrompt && !d.cotTrace && <div className="muted mono" style={{ fontSize: 11 }}>// 无详细轨迹</div>}
+          {!d.systemPrompt && !d.inputPrompt && !d.rawResponse && !d.cotTrace && <div className="muted mono" style={{ fontSize: 11 }}>// 无详细轨迹</div>}
         </div>
       )}
     </div>
