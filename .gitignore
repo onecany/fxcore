@@ -82,3 +82,4 @@ CLAUDE.md
 
 # ── 测试与 QA 本地产物 ───────────────────────────────────────
 screenshots/
+scripts/__pycache__/
