@@ -39,6 +39,7 @@ export function InspectorPanel({ trader, modelNameOf, accountOf, onOpenTerminal 
       <CfgRow k="止损" v={fmtPct(trader.riskConfig?.stopLoss)} />
       <CfgRow k="止盈" v={fmtPct(trader.riskConfig?.takeProfit)} />
       <CfgRow k="日损上限" v={fmtPct(trader.riskConfig?.maxDailyLoss)} />
+      <CfgRow k="周期" v={formatCycle(trader.schedule?.interval)} />
       <button className="btn primary" style={{ width: '100%', marginTop: 12 }} onClick={() => onOpenTerminal(trader)}>
         ▸ 打开终端
       </button>
@@ -53,4 +54,12 @@ function InspectorMetric({ label, value, tone }: { label: string; value: string;
       <div className={`tm-card-value ${tone ?? ''}`} style={{ fontSize: 15 }}>{value}</div>
     </div>
   );
+}
+
+// 周期展示：后端 interval 为秒，UI 单位用分钟（用户偏好）；<60s 显示秒。
+function formatCycle(intervalSec?: number): string {
+  if (!intervalSec || intervalSec <= 0) return '-';
+  if (intervalSec < 60) return `${intervalSec} 秒`;
+  const min = intervalSec / 60;
+  return Number.isInteger(min) ? `${min} 分钟` : `${min.toFixed(1)} 分钟`;
 }
