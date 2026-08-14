@@ -4,12 +4,16 @@
 // → Position History（全宽统计网格 + LONG/SHORT 分拆 + Symbol Performance + 明细表）
 // 数据层：SWR 缓存 + 5s 轮询（useTraderTerminal），支持 URL ?trader=<id> 直达。
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import { PageHead, Panel, Badge } from '../components/ui';
 import { fmtUsd, fmtPct, fmtDur } from '../utils/format';
 import { useTraderTerminal, realizedOf } from './dashboard/useTraderTerminal';
 import { UP, DOWN, TmCard, RiskCard, PhStat, CfgRow, EquityCurve } from './dashboard/primitives';
 import { DecisionCard, fmtClock, pnlColor, fmtSharpe } from './dashboard/exec-log';
 import { ExchangeBalances } from './dashboard/exchange-balances';
+import * as modelApi from '../api/v1/modules/models';
+import * as strategyApi from '../api/v1/modules/strategies';
+import type { AIModel, StrategyItem } from '../api/v1/types/contract';
 
 export default function TraderDashboardSection() {
   const [traderId, setTraderId] = useTraderIdFromURL();
@@ -32,6 +36,29 @@ export default function TraderDashboardSection() {
 
   const wins = useMemo(() => history.filter((p) => (realizedOf(p) ?? 0) > 0), [history]);
   const losses = useMemo(() => history.filter((p) => (realizedOf(p) ?? 0) <= 0), [history]);
+
+  // 模型/策略名称映射：配置摘要显示存储名称而非 id（2026-08 用户要求）
+  const { data: models } = useSWR<AIModel[]>(['/models', 'terminal-name'], async () => modelApi.listModels());
+  const { data: strategies } = useSWR<StrategyItem[]>(['/strategies', 'terminal-name'], async () => {
+    const d = await strategyApi.listStrategies();
+    return d.items;
+  });
+  const modelNameOf = useCallback((id?: string) => {
+    if (!id) return '-';
+    return models?.find((m) => m.id === id)?.name ?? id;
+  }, [models]);
+  const strategyNameOf = useCallback((id?: string) => {
+    if (!id) return '-';
+    return strategies?.find((s) => s.id === id)?.name ?? id;
+  }, [strategies]);
+  // 周期展示：后端 interval 为秒，UI 用分钟（用户偏好）；<60s 显示秒
+  const cycleText = useMemo(() => {
+    const sec = trader?.schedule?.interval;
+    if (!sec || sec <= 0) return '-';
+    if (sec < 60) return `${sec}s`;
+    const min = sec / 60;
+    return Number.isInteger(min) ? `${min}m` : `${min.toFixed(1)}m`;
+  }, [trader]);
 
   return (
     <section>
@@ -64,18 +91,19 @@ export default function TraderDashboardSection() {
           </span>
         )}
         <span className="mono dim" style={{ fontSize: 12 }}>
-          cycle <b style={{ color: 'var(--fxcore-accent)' }}>{latest?.cycleNumber ?? '-'}</b>
+          cycle <b style={{ color: 'var(--fxcore-accent)' }}>{cycleText}</b>
+          {latest?.cycleNumber != null && <span style={{ marginLeft: 8 }}>· 第 {latest.cycleNumber} 轮</span>}
         </span>
       </div>
 
       {/* tm 终端摘要行（name · model · strategy · lev · scan · universe · positions · next cycle） */}
       <div className="tm-mono" style={{ marginBottom: 12 }}>
         <span className="tm-k">{trader?.name ?? '-'}</span>
-        <span className="tm-dim">model</span><span className="tm-v">{trader?.modelConfig?.modelId ?? '-'}</span>
-        <span className="tm-dim">strategy</span><span className="tm-v">{trader?.strategyId?.slice(0, 8) ?? '-'}</span>
+        <span className="tm-dim">model</span><span className="tm-v">{modelNameOf(trader?.modelConfig?.modelId)}</span>
+        <span className="tm-dim">strategy</span><span className="tm-v">{strategyNameOf(trader?.strategyId)}</span>
         <span className="tm-dim">lev</span><span className="tm-v">—× / —×</span>
         <span className="tm-dim">positions</span><span className="tm-v">{positions.length}</span>
-        <span className="tm-dim">cycle</span><span className="tm-v">{latest?.cycleNumber ?? '-'}</span>
+        <span className="tm-dim">cycle</span><span className="tm-v">{cycleText}</span>
         <span className="tm-dim">status</span>
         <span className={`tm-v ${trader?.status === 'running' ? 'ok' : trader?.status === 'paused' ? 'warn' : ''}`}>
           {trader?.status === 'running' ? 'ONLINE' : (trader?.status ?? 'OFFLINE').toUpperCase()}
@@ -160,8 +188,9 @@ export default function TraderDashboardSection() {
           </Panel>
           <Panel title="配置摘要">
             <CfgRow k="交易所" v={trader?.exchange ?? '-'} />
-            <CfgRow k="模型" v={`${trader?.modelConfig?.provider ?? '-'} / ${trader?.modelConfig?.modelId ?? '-'}`} />
-            <CfgRow k="策略" v={trader?.strategyId ?? '-'} />
+            <CfgRow k="模型" v={`${trader?.modelConfig?.provider ?? '-'} / ${modelNameOf(trader?.modelConfig?.modelId)}`} />
+            <CfgRow k="策略" v={strategyNameOf(trader?.strategyId)} />
+            <CfgRow k="周期" v={cycleText === '-' ? '-' : `${cycleText}（${trader?.schedule?.interval} 秒）`} />
             <CfgRow k="单笔上限" v={`${fmtUsd(trader?.riskConfig?.maxPositionSize)} USDT`} />
             <CfgRow k="止损" v={fmtPct(trader?.riskConfig?.stopLoss)} />
             <CfgRow k="止盈" v={fmtPct(trader?.riskConfig?.takeProfit)} />
