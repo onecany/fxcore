@@ -17,6 +17,8 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
   const [modelId, setModelId] = useState(editing?.modelConfig.modelId ?? '');
   const [strategyId, setStrategyId] = useState(editing?.strategyId ?? '');
   const [strategies, setStrategies] = useState<{ id: string; name: string }[]>([]);
+  // cycle 周期：引擎轮询间隔（秒），UI 用分钟展示（÷60 回填 / ×60 提交），缺省 1 分钟
+  const [cycleMin, setCycleMin] = useState(String(Math.round((editing?.schedule?.interval ?? 60) / 60)));
   const [risk, setRisk] = useState<RiskConfig>(editing?.riskConfig ?? { maxPositionSize: 500, stopLoss: 0.05, takeProfit: 0.1, maxDailyLoss: 0.05 });
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,6 +81,7 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
         modelConfig: { provider: (model?.provider ?? 'deepseek') as never, modelId },
         strategyId,
         riskConfig: risk,
+        schedule: { interval: Math.max(3, Math.round(Number(cycleMin) || 1) * 60) },
       };
       if (editing) {
         await traderApi.updateTrader(editing.id, body);
@@ -93,7 +96,7 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
     } finally {
       setBusy(false);
     }
-  }, [name, exchange, modelId, strategyId, risk, editing, models, onCreated, exchangeOptions]);
+  }, [name, exchange, modelId, strategyId, risk, cycleMin, editing, models, onCreated, exchangeOptions]);
 
   return (
     <Panel title={editing ? `编辑交易员 · ${editing.name}` : '创建交易员'} className="mb">
@@ -132,6 +135,18 @@ export function CreateTraderPanel({ editing, models, exchanges, onClose, onCreat
         <RiskField label="止损" value={risk.stopLoss} onChange={(v) => setRisk((r) => ({ ...r, stopLoss: v }))} pct />
         <RiskField label="止盈" value={risk.takeProfit} onChange={(v) => setRisk((r) => ({ ...r, takeProfit: v }))} pct />
         <RiskField label="日损上限" value={risk.maxDailyLoss} onChange={(v) => setRisk((r) => ({ ...r, maxDailyLoss: v }))} pct />
+        <label className="mono" style={{ fontSize: 11 }}>
+          cycle 周期（分钟）· ≥0.05
+          <input
+            className="prompt-area"
+            style={{ marginTop: 4 }}
+            type="number"
+            min={0.05}
+            step={0.5}
+            value={cycleMin}
+            onChange={(e) => setCycleMin(e.target.value)}
+          />
+        </label>
       </div>
       <div className="row" style={{ marginTop: 12, gap: 10 }}>
         <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? '保存中…' : editing ? '● 保存修改' : '＋ 创建'}</button>
