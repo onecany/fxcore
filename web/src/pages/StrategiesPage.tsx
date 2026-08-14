@@ -147,6 +147,8 @@ export default function StrategiesPage() {
       enableMacd: d?.enableMacd ?? base?.enableMacd ?? false,
       enableRsi: d?.enableRsi ?? base?.enableRsi ?? false,
       rsiPeriods: d?.rsiPeriods ?? base?.rsiPeriods ?? [14],
+      enableBoll: d?.enableBoll ?? base?.enableBoll ?? false,
+      bollPeriods: d?.bollPeriods ?? base?.bollPeriods ?? [20],
     };
   }, [draft, selected]);
 
@@ -155,12 +157,19 @@ export default function StrategiesPage() {
       const base = (prev?.indicators as Record<string, unknown> | undefined)
         ?? (selected?.config?.indicators as Record<string, unknown> | undefined)
         ?? {};
+      // 强制合并 klines：MergeConfigInto 对 indicators 整体替换有前置条件
+      // `Klines.PrimaryTimeframe != ""`——缺 klines 时整个 indicators 更新被静默跳过
+      // （PUT 200 但 DB 不变，2026-08 BOLL 实锤）。任何情况下都保证 klines 在场。
       return {
         ...(prev ?? {}),
-        indicators: { ...base, ...patch },
+        indicators: {
+          ...base,
+          klines: { ...klineCfg, ...((base.klines as Partial<KlineConfig> | undefined) ?? {}) },
+          ...patch,
+        },
       };
     });
-  }, [selected]);
+  }, [klineCfg, selected]);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -536,9 +545,9 @@ export default function StrategiesPage() {
                         <span style={{ color: 'var(--fxcore-accent)', fontSize: 11 }}>● 已编辑，未保存</span>
                       )}
                     </div>
-                    {/* 技术指标开关（EMA/MACD/RSI）：config.indicators 顶层字段 */}
+                    {/* 技术指标开关（EMA/MACD/RSI/BOLL）：config.indicators 顶层字段 */}
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fxcore-text-dim)', margin: '16px 0 6px' }}>
-                      ▶ 技术指标（EMA / MACD / RSI）
+                      ▶ 技术指标（EMA / MACD / RSI / BOLL）
                     </div>
                     <div className="field" style={{ marginBottom: 8 }}>
                       <label className="checkbox-row" style={{ gap: 6 }}>
@@ -590,6 +599,30 @@ export default function StrategiesPage() {
                             onChange={(e) => {
                               const periods = e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0);
                               setIndicator({ rsiPeriods: periods });
+                            }}
+                            style={{ width: 150 }}
+                          />
+                          <span className="dim mono" style={{ fontSize: 11 }}>周期（逗号分隔）</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="field" style={{ marginBottom: 4 }}>
+                      <label className="checkbox-row" style={{ gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={indicatorCfg.enableBoll}
+                          onChange={(e) => setIndicator({ enableBoll: e.target.checked })}
+                        /> BOLL 布林带
+                      </label>
+                      {indicatorCfg.enableBoll && (
+                        <div className="row" style={{ gap: 8, marginTop: 4 }}>
+                          <input
+                            type="text"
+                            value={indicatorCfg.bollPeriods.join(',')}
+                            placeholder="20"
+                            onChange={(e) => {
+                              const periods = e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0);
+                              setIndicator({ bollPeriods: periods });
                             }}
                             style={{ width: 150 }}
                           />
