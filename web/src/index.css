@@ -998,6 +998,17 @@ body::after {
   color: var(--fxcore-accent);
   letter-spacing: 0.04em;
 }
+/* chip 作 button（可交互档位选择）时重置默认按钮样式 */
+button.chip {
+  cursor: pointer;
+  background: rgba(240, 185, 11, 0.07);
+  color: var(--fxcore-accent);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+button.chip:hover {
+  background: rgba(240, 185, 11, 0.14);
+  border-color: rgba(240, 185, 11, 0.45);
+}
 
 /* ========== 交易员编队（指挥中心布局） ========== */
 /* 系统状态行（终端语义：SYSTEM_READY / SYSTEM_STANDBY） */

@@ -5,9 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import * as strategyApi from '../api/v1/modules/strategies';
 import * as modelApi from '../api/v1/modules/models';
-import type { StrategyItem, CoinSourceConfig, CoinSourceType, AIModel, TestRunResult } from '../api/v1/types/contract';
+import type { StrategyItem, CoinSourceConfig, CoinSourceType, AIModel, TestRunResult, KlineConfig } from '../api/v1/types/contract';
 import { PageHead, Alert, Terminal, Panel } from '../components/ui';
 import { PROFILES, COIN_SOURCE_TYPES, coinsToStr, strToCoins, camelKey, type ProfileDef, type CsEditable } from '../sections/strategies/strategy-data';
+
+// K 线周期档位（与后端 dto.KlineConfig 对齐，DefaultConfig 默认 6 档全选）
+const TF_OPTIONS = ['1m', '5m', '15m', '1h', '4h', '1d'] as const;
 
 export default function StrategiesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -94,6 +97,44 @@ export default function StrategiesPage() {
   }, [cs]);
 
   const csDirty = draft?.coin_source !== undefined;
+
+  // ===== K 线参数（config.indicators.klines）：draft 优先，fallback 后端配置 =====
+  // 写入 draft.indicators（snake 键），MergeConfigInto 白名单整体替换 indicators。
+  const klineCfg = useMemo(() => {
+    const d = draft?.indicators as { klines?: Partial<KlineConfig> } | undefined;
+    const base = selected?.config?.indicators?.klines;
+    return {
+      primaryTimeframe: d?.klines?.primaryTimeframe ?? base?.primaryTimeframe ?? '15m',
+      primaryCount: d?.klines?.primaryCount ?? base?.primaryCount ?? 200,
+      enableMultiTimeframe: d?.klines?.enableMultiTimeframe ?? base?.enableMultiTimeframe ?? true,
+      selectedTimeframes: d?.klines?.selectedTimeframes ?? base?.selectedTimeframes ?? ['1m', '5m', '15m', '1h', '4h', '1d'],
+    };
+  }, [draft, selected]);
+
+  const setKline = useCallback((patch: Partial<KlineConfig>) => {
+    setDraft((prev) => {
+      // 基础 = 完整现有 indicators（camel 键，提交时 client 自动 toSnake）。
+      // 必须带全部指标字段（enableEma/enableMacd/emaPeriods 等）——MergeConfigInto
+      // 对 indicators 是整体替换，只写 klines 会把其它指标开关清零（2026-08 实锤）。
+      const base = (prev?.indicators as Record<string, unknown> | undefined)
+        ?? (selected?.config?.indicators as Record<string, unknown> | undefined)
+        ?? {};
+      const curK = (base.klines as Partial<KlineConfig> | undefined) ?? {};
+      return {
+        ...(prev ?? {}),
+        indicators: { ...base, klines: { ...klineCfg, ...curK, ...patch } },
+      };
+    });
+  }, [klineCfg, selected]);
+
+  const toggleTF = useCallback((tf: string) => {
+    const cur = klineCfg.selectedTimeframes.includes(tf)
+      ? klineCfg.selectedTimeframes.filter((x) => x !== tf)
+      : [...klineCfg.selectedTimeframes, tf];
+    setKline({ selectedTimeframes: cur });
+  }, [klineCfg, setKline]);
+
+  const klineDirty = draft?.indicators !== undefined;
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,6 +449,67 @@ export default function StrategiesPage() {
                         />
                       </div>
                     ))}
+                    {/* K 线参数（config.indicators.klines）：AI 分析输入维度，与提示词同卡 */}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fxcore-text-dim)', margin: '16px 0 6px' }}>
+                      ▶ K 线参数（indicators.klines）
+                    </div>
+                    <div className="field" style={{ marginBottom: 8 }}>
+                      <label>主周期 · K 线数量</label>
+                      <div className="row" style={{ gap: 10 }}>
+                        <select
+                          value={klineCfg.primaryTimeframe}
+                          onChange={(e) => setKline({ primaryTimeframe: e.target.value })}
+                          style={{ flex: 1 }}
+                        >
+                          {TF_OPTIONS.map((tf) => <option key={tf} value={tf}>{tf}</option>)}
+                        </select>
+                        <input
+                          type="number"
+                          min={20}
+                          max={1000}
+                          step={10}
+                          value={klineCfg.primaryCount}
+                          onChange={(e) => setKline({ primaryCount: Number(e.target.value) || 200 })}
+                          style={{ width: 110 }}
+                        />
+                      </div>
+                    </div>
+                    <div className="field" style={{ marginBottom: 4 }}>
+                      <label className="checkbox-row" style={{ gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          checked={klineCfg.enableMultiTimeframe}
+                          onChange={(e) => setKline({ enableMultiTimeframe: e.target.checked })}
+                        /> 多时间框架分析
+                      </label>
+                    </div>
+                    {klineCfg.enableMultiTimeframe && (
+                      <div className="chip-row" style={{ marginTop: 4 }}>
+                        {TF_OPTIONS.map((tf) => (
+                          <button
+                            key={tf}
+                            type="button"
+                            className={`chip ${klineCfg.selectedTimeframes.includes(tf) ? 'on' : ''}`}
+                            style={klineCfg.selectedTimeframes.includes(tf)
+                              ? { background: 'rgba(240,185,11,0.14)', color: 'var(--fxcore-accent)', borderColor: 'rgba(240,185,11,0.45)' }
+                              : undefined}
+                            onClick={() => toggleTF(tf)}
+                          >
+                            {tf}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div className="row" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                      <span className="mono dim" style={{ fontSize: 11 }}>
+                        PRIMARY {klineCfg.primaryTimeframe} · {klineCfg.primaryCount} BARS
+                        {klineCfg.enableMultiTimeframe && klineCfg.selectedTimeframes.length > 0
+                          ? ` · MTF ${klineCfg.selectedTimeframes.join('/')}` : ''}
+                      </span>
+                      {klineDirty && (
+                        <span style={{ color: 'var(--fxcore-accent)', fontSize: 11 }}>● 已编辑，未保存</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fxcore-text-dim)', margin: '4px 0 6px' }}>
                       ▶ 补充指令（custom_prompt）
                     </div>
