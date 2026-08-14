@@ -176,3 +176,6 @@ go test ./internal/...       # 全量（含 -race 并发测试）
 └── web/               # React 前端
 ```
 
+## License
+
+Copyright (c) Onecany. All rights reserved.
