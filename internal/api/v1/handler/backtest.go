@@ -279,12 +279,13 @@ func (h *BacktestHandler) Metrics(c *gin.Context) {
 // @Failure 404 {object} dto.ErrorResponse "1412 决策不存在"
 // @Router /backtest/trace [get]
 func (h *BacktestHandler) Trace(c *gin.Context) {
+	// 授权先行（与其余 run 级端点一致）：越权请求无论参数如何都返 404，不泄露 run 存在性
+	if !h.authorizeRun(c, c.Query("run_id")) {
+		return
+	}
 	cycle, err := strconv.ParseInt(c.Query("cycle"), 10, 64)
 	if err != nil {
 		middleware.WriteError(c, middleware.BadRequest("invalid cycle", nil))
-		return
-	}
-	if !h.authorizeRun(c, c.Query("run_id")) {
 		return
 	}
 	rec, apiErr := h.engine.Trace(c.Query("run_id"), cycle)
