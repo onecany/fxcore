@@ -140,3 +140,15 @@ func exchangeToDTO(e *model.Exchange) dto.ExchangeDTO {
 		UpdatedAt:             e.UpdatedAt,
 	}
 }
+
+// ListBalances GET /exchanges/balances
+// ListBalances 各交易所账户余额（调各所账户 API 实时查询；失败降级 balance=null + error）。
+// @Summary 交易所账户余额
+// @Tags exchanges
+// @Produce json
+// @Success 200 {object} dto.ApiResponse[[]dto.ExchangeBalanceDTO]
+// @Failure 401 {object} dto.ErrorResponse "1002 未认证"
+// @Router /exchanges/balances [get]
+func (h *ExchangeHandler) ListBalances(c *gin.Context) {
+	middleware.WriteOK(c, h.svc.Balances(currentUserID(c)))
+}

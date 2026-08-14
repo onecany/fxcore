@@ -61,3 +61,12 @@ type ExchangeDTO struct {
 	CreatedAt                 time.Time `json:"created_at"`
 	UpdatedAt                 time.Time `json:"updated_at"`
 }
+
+// ExchangeBalanceDTO 交易所账户余额（调各所账户 API 实时查询；失败降级 balance=null + error）。
+type ExchangeBalanceDTO struct {
+	ExchangeType string  `json:"exchange_type"`
+	AccountName  string  `json:"account_name"`
+	Balance      *float64 `json:"balance"` // null = 查询失败
+	Currency     string  `json:"currency"`
+	Error        string  `json:"error,omitempty"`
+}

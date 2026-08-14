@@ -167,6 +167,7 @@ func NewRouter(d Deps) *gin.Engine {
 		// --- 交易所（§11 exchanges 路由） ---
 		exchangeH := handler.NewExchangeHandler(service.NewExchangeService(d.Store, d.KeyManager))
 		read.GET("/exchanges", exchangeH.List)
+		read.GET("/exchanges/balances", exchangeH.ListBalances)
 		write.POST("/exchanges", exchangeH.Create)
 		write.PUT("/exchanges/:id", exchangeH.Update)
 		write.DELETE("/exchanges/:id", exchangeH.Delete)

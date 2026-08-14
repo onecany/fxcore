@@ -1,10 +1,13 @@
 package service
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"sync"
 
 	"fxcore/internal/api/v1/dto"
+	"fxcore/internal/exchange"
 	"fxcore/internal/middleware"
 	"fxcore/internal/model"
 	"fxcore/internal/pkg/crypto"
@@ -349,4 +352,85 @@ func mergeExchangeFields(e *model.Exchange, in *dto.UpdateExchangeRequest) *dto.
 		out.ExchangeType = *in.ExchangeType
 	}
 	return out
+}
+
+// Balances 各交易所账户余额（调各所账户 API 实时查询，失败降级 balance=null）。
+// 遍历已启用账户 → RSA 解密凭据 → 构造适配器 → GetBalance 并发聚合。
+func (svc *ExchangeService) Balances(userID string) []dto.ExchangeBalanceDTO {
+	accounts := svc.store.ListExchanges(userID)
+	if len(accounts) == 0 {
+		return []dto.ExchangeBalanceDTO{}
+	}
+	out := make([]dto.ExchangeBalanceDTO, len(accounts))
+	var wg sync.WaitGroup
+	for i, e := range accounts {
+		wg.Add(1)
+		go func(i int, e *model.Exchange) {
+			defer wg.Done()
+			d := dto.ExchangeBalanceDTO{
+				ExchangeType: e.ExchangeType,
+				AccountName:  e.AccountName,
+				Currency:     "USDT",
+			}
+			creds, ok := svc.credentialsFor(e)
+			if !ok {
+				d.Error = "凭据解密失败"
+				out[i] = d
+				return
+			}
+			adapter, err := exchange.New(*creds)
+			if err != nil {
+				d.Error = "适配器不可用：" + err.Error()
+				out[i] = d
+				return
+			}
+			bal, err := adapter.GetBalance(context.Background())
+			if err != nil {
+				d.Error = "查询失败：" + err.Error()
+				out[i] = d
+				return
+			}
+			d.Balance = &bal
+			out[i] = d
+		}(i, e)
+	}
+	wg.Wait()
+	return out
+}
+
+// credentialsFor 单账户凭据解密（对齐 CredentialsResolver 逻辑）。
+func (svc *ExchangeService) credentialsFor(e *model.Exchange) (*exchange.Credentials, bool) {
+	creds := &exchange.Credentials{
+		ExchangeType: e.ExchangeType,
+		WalletAddr:   e.HyperliquidWalletAddr,
+		Testnet:      e.Testnet,
+	}
+	var ok = true
+	decrypt := func(enc string) string {
+		if enc == "" {
+			return ""
+		}
+		plain, err := svc.km.Decrypt(enc)
+		if err != nil {
+			ok = false
+			return ""
+		}
+		return string(plain)
+	}
+	creds.APIKey = decrypt(e.APIKeyEnc)
+	creds.SecretKey = decrypt(e.SecretKeyEnc)
+	creds.Passphrase = decrypt(e.PassphraseEnc)
+	creds.PrivateKey = decrypt(e.AsterPrivateKeyEnc)
+	creds.APIKeyPrivateKey = decrypt(e.LighterAPIKeyPrivateKeyEnc)
+	if creds.PrivateKey == "" {
+		creds.PrivateKey = decrypt(e.LighterPrivateKeyEnc)
+	}
+	if e.ExchangeType == model.ExchangeHyperliquid && creds.PrivateKey == "" {
+		creds.PrivateKey = decrypt(e.HyperliquidPrivateKeyEnc)
+	}
+	creds.APIKeyIndex = e.LighterAPIKeyIndex
+	if !ok {
+		return nil, false
+	}
+	return creds, true
 }
