@@ -45,7 +45,7 @@ var validExchanges = map[string]bool{
 // Create 创建交易员（状态 idle）。
 func (svc *TraderService) Create(userID string, in *dto.CreateTraderRequest) (*model.Trader, *middleware.APIError) {
 	if !validExchanges[in.Exchange] {
-		return nil, middleware.BadRequest("unsupported exchange", map[string]string{"exchange": "must be one of binance,hyperliquid,aster,bybit,okx"})
+		return nil, middleware.BadRequest("unsupported exchange", map[string]string{"exchange": "must be one of binance,hyperliquid,aster,bybit,okx,bitget,gate,kucoin,indodax,lighter"})
 	}
 	if _, ok := svc.store.GetModel(in.ModelConfig.ModelID); !ok {
 		return nil, middleware.BadRequest("referenced model not found", map[string]string{"model_config.model_id": "model id does not exist"})
