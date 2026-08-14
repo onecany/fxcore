@@ -179,3 +179,5 @@ go test ./internal/...       # 全量（含 -race 并发测试）
 ## License
 
 Copyright (c) Onecany. All rights reserved.
+
+本项目依赖的第三方 Go 包许可证清单见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
