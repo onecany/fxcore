@@ -2,6 +2,7 @@ package kernel
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"fxcore/internal/api/v1/dto"
@@ -121,6 +122,32 @@ func rsiLast(closes []float64, period int) (float64, bool) {
 	return series[len(series)-1], true
 }
 
+// boll 计算布林带：中轨 = period 期 SMA，上下轨 = 中轨 ± k×标准差（k=2 默认）。
+// 返回 (mid, upper, lower)，数据不足返回 ok=false。
+func boll(closes []float64, period int) (mid, upper, lower float64, ok bool) {
+	if len(closes) < period {
+		return 0, 0, 0, false
+	}
+	window := closes[len(closes)-period:]
+	sum := 0.0
+	for _, c := range window {
+		sum += c
+	}
+	mid = sum / float64(period)
+	variance := 0.0
+	for _, c := range window {
+		d := c - mid
+		variance += d * d
+	}
+	std := 0.0
+	if period > 1 {
+		std = math.Sqrt(variance / float64(period))
+	}
+	upper = mid + 2*std
+	lower = mid - 2*std
+	return mid, upper, lower, true
+}
+
 // ========== K 线 + 指标 → 用户上下文 ==========
 
 // BuildKlineContext 把 K 线数据与技术指标计算值格式化为 user 消息内容。
@@ -174,6 +201,13 @@ func BuildKlineContext(klines []dto.KlineDTO, cfg dto.StrategyConfig) string {
 		}
 		if len(vals) > 0 {
 			b.WriteString("Indicators: " + strings.Join(vals, " ") + "\n")
+		}
+	}
+	if ind.EnableBoll && len(ind.BollPeriods) > 0 {
+		for _, p := range ind.BollPeriods {
+			if mid, upper, lower, ok := boll(closes, p); ok {
+				b.WriteString(fmt.Sprintf("BOLL%d: mid=%.4f upper=%.4f lower=%.4f\n", p, mid, upper, lower))
+			}
 		}
 	}
 	return b.String()

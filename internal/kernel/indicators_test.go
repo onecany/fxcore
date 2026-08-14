@@ -92,16 +92,45 @@ func TestBuildKlineContext(t *testing.T) {
 			EnableMACD: true,
 			EnableRSI:  true,
 			RSIPeriods: []int{14},
+			EnableBoll: true,
+			BollPeriods: []int{20},
 		},
 	}
 	out := BuildKlineContext(klines, cfg)
 	if out == "" {
 		t.Fatalf("expected non-empty context")
 	}
-	for _, want := range []string{"Market data", "t=1700001200", "EMA5=", "MACD:", "RSI14="} {
+	for _, want := range []string{"Market data", "t=1700001200", "EMA5=", "MACD:", "RSI14=", "BOLL20:"} {
 		if !containsStr(out, want) {
 			t.Fatalf("missing %q in context:\n%s", want, out)
 		}
+	}
+}
+
+// BOLL 手工值：period=4，序列 1..5 → 窗口 [2,3,4,5] 中轨 3.5。
+func TestBOLLManual(t *testing.T) {
+	closes := []float64{1, 2, 3, 4, 5}
+	mid, upper, lower, ok := boll(closes, 4)
+	if !ok {
+		t.Fatalf("want ok=true")
+	}
+	if math.Abs(mid-3.5) > 1e-9 {
+		t.Fatalf("mid=%.6f want 3.5", mid)
+	}
+	// 窗口 [2,3,4,5]：均 3.5，方差 = ((1.5²+0.5²+0.5²+1.5²)/4) = 5/4 = 1.25，std=√1.25≈1.118
+	wantStd := math.Sqrt(1.25)
+	if math.Abs(upper-(3.5+2*wantStd)) > 1e-9 {
+		t.Fatalf("upper=%.6f want %.6f", upper, 3.5+2*wantStd)
+	}
+	if math.Abs(lower-(3.5-2*wantStd)) > 1e-9 {
+		t.Fatalf("lower=%.6f want %.6f", lower, 3.5-2*wantStd)
+	}
+}
+
+// BOLL 数据不足（<period 根）→ ok=false。
+func TestBOLLNotEnoughData(t *testing.T) {
+	if _, _, _, ok := boll([]float64{1, 2, 3}, 4); ok {
+		t.Fatalf("want ok=false for insufficient data")
 	}
 }
 
