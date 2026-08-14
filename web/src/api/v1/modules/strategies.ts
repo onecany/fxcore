@@ -1,7 +1,7 @@
 // FXcore-web API v1 策略模块（§10 strategies）。
 // 对应后端 GET/POST/PUT/DELETE /strategies、activate、preview-prompt、test-run。
 import client from '../client';
-import type { StrategyItem, StrategyConfig, CreateStrategyRequest, UpdateStrategyRequest } from '../types/contract';
+import type { StrategyItem, StrategyConfig, CreateStrategyRequest, UpdateStrategyRequest, TestRunResult } from '../types/contract';
 
 /** 策略列表（分页信封） */
 export function listStrategies(): Promise<{ items: StrategyItem[]; pagination: { total: number } }> {
@@ -33,9 +33,9 @@ export function previewPrompt(config: StrategyConfig): Promise<{ prompt: string 
   return client.post('/strategies/preview-prompt', { config });
 }
 
-/** 试跑（空骨架：策略可用性验证） */
-export function testRun(id: string): Promise<{ success: boolean; message: string }> {
-  return client.post(`/strategies/${id}/test-run`);
+/** AI 试跑：用指定模型跑当前配置构建的提示词，返回原始输出 + 解析决策（POST /strategies/test-run） */
+export function testRun(req: { config: StrategyConfig; modelId: string }): Promise<TestRunResult> {
+  return client.post('/strategies/test-run', { config: req.config, model_id: req.modelId });
 }
 
 /** 默认配置（新建表单预填） */

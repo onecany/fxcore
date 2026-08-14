@@ -4,8 +4,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import * as strategyApi from '../api/v1/modules/strategies';
-import type { StrategyItem, CoinSourceConfig, CoinSourceType } from '../api/v1/types/contract';
-import { PageHead, Alert, Terminal } from '../components/ui';
+import * as modelApi from '../api/v1/modules/models';
+import type { StrategyItem, CoinSourceConfig, CoinSourceType, AIModel, TestRunResult } from '../api/v1/types/contract';
+import { PageHead, Alert, Terminal, Panel } from '../components/ui';
 import { PROFILES, COIN_SOURCE_TYPES, coinsToStr, strToCoins, camelKey, type ProfileDef, type CsEditable } from '../sections/strategies/strategy-data';
 
 export default function StrategiesPage() {
@@ -17,6 +18,27 @@ export default function StrategiesPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
+  // AI 试跑状态
+  const [testModelId, setTestModelId] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestRunResult | null>(null);
+
+  // AI 模型列表（试跑选模型用）
+  const { data: models } = useSWR<AIModel[]>(
+    ['/models', 'studio-test'],
+    async () => {
+      const d = await modelApi.listModels();
+      return d;
+    },
+    { refreshInterval: 30000 },
+  );
+  const modelList = useMemo(() => models ?? [], [models]);
+  // 默认选中第一个模型（试跑必需）
+  useEffect(() => {
+    if (!testModelId && modelList.length > 0) {
+      setTestModelId(modelList[0].id);
+    }
+  }, [modelList, testModelId]);
 
   // 策略列表：SWR + 5s 轮询（激活状态自动刷新）
   const { data, mutate } = useSWR<StrategyItem[]>(
@@ -124,6 +146,19 @@ export default function StrategiesPage() {
       setPreview(p.prompt);
       setSubTab('prompt');
     } catch (err) { setError(String(err)); }
+  };
+
+  const runTest = async () => {
+    if (!selected || !testModelId) return;
+    setError(null);
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // 测试用 draft 优先的 config（未保存的编辑也生效）；无 draft 用已保存 config
+      const cfg = (draft ?? null) ? (draft as Record<string, unknown>) : selected.config;
+      const r = await strategyApi.testRun({ config: cfg as never, modelId: testModelId });
+      setTestResult(r);
+    } catch (err) { setError(String(err)); } finally { setTesting(false); }
   };
 
   return (
@@ -400,6 +435,76 @@ export default function StrategiesPage() {
                 </>
               ) : (
                 <>
+                  {/* AI 试跑：选模型跑当前提示词 */}
+                  <Panel title="AI 试跑" className="mb">
+                    <div className="row wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
+                      <div className="field" style={{ minWidth: 220, marginBottom: 0 }}>
+                        <label>测试模型</label>
+                        <select
+                          value={testModelId}
+                          onChange={(e) => setTestModelId(e.target.value)}
+                          disabled={modelList.length === 0}
+                        >
+                          {modelList.length === 0 && <option value="">（无模型，请先到 ⬡ 模型 页创建）</option>}
+                          {modelList.map((m) => (
+                            <option key={m.id} value={m.id}>{m.name} · {m.provider}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button className="btn primary" onClick={() => void runTest()} disabled={!testModelId || testing || !selected}>
+                        {testing ? '测试中…' : '⚡ AI 测试'}
+                      </button>
+                      {draft && (
+                        <span className="dim" style={{ fontSize: 11 }}>● 使用未保存的编辑配置测试</span>
+                      )}
+                    </div>
+
+                    {testResult && (
+                      <div style={{ marginTop: 12 }}>
+                        {testResult.parsed ? (
+                          <Alert kind="ok">✓ 解析成功 · {testResult.decisions.length} 条决策 · {testResult.latencyMs}ms</Alert>
+                        ) : (
+                          <Alert kind="warn">⚠ 解析失败：{testResult.error ?? 'AI 输出无法解析为六值决策'}（原始输出见下，可检查提示词约束）</Alert>
+                        )}
+                        {testResult.decisions.length > 0 && (
+                          <div className="table-wrap" style={{ marginTop: 10 }}>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>动作</th><th>币种</th><th>数量</th><th>杠杆</th><th>止损</th><th>止盈</th><th>置信度</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {testResult.decisions.map((d, i) => (
+                                  <tr key={i}>
+                                    <td className="mono">{d.action}</td>
+                                    <td>{d.symbol}</td>
+                                    <td className="mono">{d.quantity ?? '-'}</td>
+                                    <td className="mono">{d.leverage ? `${d.leverage}x` : '-'}</td>
+                                    <td className="mono">{d.stopLoss ?? '-'}</td>
+                                    <td className="mono">{d.takeProfit ?? '-'}</td>
+                                    <td className="mono">{d.confidence != null ? `${d.confidence}%` : '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        <div className="mt">
+                          <Terminal title={`AI RAW OUTPUT · ${testResult.latencyMs}ms`}>
+                            {testResult.raw}
+                          </Terminal>
+                        </div>
+                        <details style={{ marginTop: 8 }}>
+                          <summary className="dim mono" style={{ cursor: 'pointer', fontSize: 12 }}>查看构建的系统提示词（{testResult.prompt.length} chars）</summary>
+                          <div className="mt">
+                            <Terminal title="SYSTEM PROMPT · TEST">{testResult.prompt}</Terminal>
+                          </div>
+                        </details>
+                      </div>
+                    )}
+                  </Panel>
+
                   {preview ? (
                     <Terminal title={`SYSTEM PROMPT · ${selected.name.toUpperCase().slice(0, 16)} · PREVIEW`}>
                       {preview}
