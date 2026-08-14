@@ -3,6 +3,8 @@ package dto
 import (
 	"encoding/json"
 	"time"
+
+	"fxcore/internal/model"
 )
 
 // ========== 策略模块（API设计.md §10 StrategyConfig 树） ==========
@@ -134,7 +136,18 @@ type PreviewPromptRequest struct {
 
 // TestRunRequest AI 试跑分析（§11 POST /strategies/test-run）。
 type TestRunRequest struct {
-	Config json.RawMessage `json:"config" binding:"required"`
+	Config  json.RawMessage `json:"config" binding:"required"`
+	ModelID string          `json:"model_id" binding:"required"` // 测试用 AI 模型 ID（归属校验）
+}
+
+// TestRunResponse AI 试跑结果：原始输出 + 解析决策。
+type TestRunResponse struct {
+	Prompt    string                 `json:"prompt"`              // 构建的系统提示词
+	Raw       string                 `json:"raw"`                 // 模型原始输出（解析失败时也返回，前端展示降级原因）
+	Decisions []model.DecisionAction `json:"decisions"`           // 解析后的决策数组（parsed=false 时为空）
+	Parsed    bool                   `json:"parsed"`              // 是否成功解析为六值决策
+	LatencyMS int64                  `json:"latency_ms"`          // AI 调用延迟
+	Error     string                 `json:"error,omitempty"`     // 解析失败原因（AI 调用失败走 1301/1302 错误信封）
 }
 
 // StrategyDTO 策略响应（§11 路由契约形状：平铺元数据 + config JSON）。
