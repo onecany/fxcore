@@ -2845,3 +2845,99 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   border-top: 1px solid var(--fxcore-panel-border);
   padding-top: 10px;
 }
+
+/* ========== 模型页激进版（卡片化列表 + 独立测试区 + 表单加大） ========== */
+/* 模型表单（三卡竖排 + 输入 40px 行高） */
+.model-form { display: flex; flex-direction: column; gap: 12px; }
+.model-form .form-section input, .model-form .form-section select {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+}
+.form-label {
+  font-size: 12.5px;
+  color: var(--fxcore-text-dim);
+  letter-spacing: 0.05em;
+}
+.form-required { color: var(--fxcore-down); }
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+.form-actions .btn { flex: 1; }
+
+/* 模型库卡片列表 */
+.model-list { display: flex; flex-direction: column; gap: 10px; }
+.model-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 13px 15px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.model-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.3), transparent);
+}
+.model-card:hover { border-color: var(--fxcore-panel-border-strong); box-shadow: var(--fxcore-glow-accent); }
+.model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.model-name {
+  font-family: var(--fxcore-font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+}
+/* 独立测试区 */
+.model-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--fxcore-panel-border);
+}
+.model-result {
+  font-family: var(--fxcore-font-mono);
+  font-size: 10.5px;
+  color: var(--fxcore-text-faint);
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+.model-result.ok { color: var(--fxcore-up); }
+.model-result.fail { color: var(--fxcore-down); }
+.model-result.testing { color: var(--fxcore-accent); }
+/* 操作行 */
+.model-actions {
+  display: flex;
+  gap: 8px;
+}
+.model-empty { padding: 28px 0; text-align: center; font-size: 12px; }
