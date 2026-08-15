@@ -45,25 +45,25 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-frame">
-      <aside className="app-sidebar">
+      <header className="app-topnav">
         <div className="brand-wrap">
           <img src="/fxcore-icon.svg" alt="FXcore" className="brand-mark" width={22} height={22} />
           <span className="logo">{t.brand.name}</span>
           <span className="sub">{t.brand.sub}</span>
         </div>
-        <nav className="side-nav">
+        <nav className="top-nav">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              className={({ isActive }) => `side-tab ${isActive ? 'active' : ''}`}
+              className={({ isActive }) => `top-tab ${isActive ? 'active' : ''}`}
             >
               <span className="glyph">{item.glyph}</span>
               {item.label}
             </NavLink>
           ))}
         </nav>
-        <div className="side-foot">
+        <div className="top-right">
           <div className="sys-row">
             <span>SYSTEM</span>
             <span className="led" title="system-ready" />
@@ -72,8 +72,10 @@ function Shell({ children }: { children: React.ReactNode }) {
             <span>TIME</span>
             <span>{clock}</span>
           </div>
+          <LangSwitch />
+          <button className="btn ghost" onClick={() => void logout()}>{t.common.logout}</button>
         </div>
-      </aside>
+      </header>
       <main className="app-main">
         <div className="app-statusbar">
           <div className="st-crumb">
@@ -82,11 +84,8 @@ function Shell({ children }: { children: React.ReactNode }) {
             <span className="cur">{cur?.label ?? ''}</span>
           </div>
           <div className="st-side">
-            <LangSwitch />
-            <span className="st-mono">{clock}</span>
             <span className="st-mono" style={{ color: 'var(--fxcore-up)' }}>●</span>
             <span className="st-mono">{user?.email}</span>
-            <button className="btn ghost" onClick={() => void logout()}>{t.common.logout}</button>
           </div>
         </div>
         <div className="scanline">{children}</div>
