@@ -101,7 +101,7 @@ const zh = {
     login: '⭘ 登录', register: '✦ 注册', create: '✦ 创建账号',
     email: 'email@example.com', nickname: '昵称（可选）',
     password: '密码', passwordHint: '密码（至少 8 位）',
-    busy: '处理中…', devLogin: '⏎ dev 默认账号快捷登录',
+    busy: '处理中…',
     errEmpty: '请填写邮箱与密码', errShort: '密码至少 8 位', errExpired: '登录已过期，请重新登录',
   },
   common: {
@@ -214,7 +214,7 @@ const en: typeof zh = {
     login: '⭘ Sign In', register: '✦ Register', create: '✦ Create Account',
     email: 'email@example.com', nickname: 'Nickname (optional)',
     password: 'Password', passwordHint: 'Password (min 8 chars)',
-    busy: 'Processing…', devLogin: '⏎ dev quick login',
+    busy: 'Processing…',
     errEmpty: 'Email and password required', errShort: 'Password must be at least 8 chars', errExpired: 'Session expired, please sign in again',
   },
   common: {
@@ -327,7 +327,7 @@ const id: typeof zh = {
     login: '⭘ Masuk', register: '✦ Daftar', create: '✦ Buat Akun',
     email: 'email@example.com', nickname: 'Nama panggilan (opsional)',
     password: 'Kata sandi', passwordHint: 'Kata sandi (min 8 karakter)',
-    busy: 'Memproses…', devLogin: '⏎ login cepat dev',
+    busy: 'Memproses…',
     errEmpty: 'Email dan kata sandi wajib diisi', errShort: 'Kata sandi minimal 8 karakter', errExpired: 'Sesi berakhir, silakan masuk lagi',
   },
   common: {
