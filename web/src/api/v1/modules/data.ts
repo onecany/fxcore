@@ -12,8 +12,8 @@ export function equityHistory(traderId: string): Promise<EquitySnapshot[]> {
   return client.get('/equity-history', { params: { trader_id: traderId } });
 }
 
-/** 订单（最新在前） */
-export function listOrders(params: { trader_id?: string; symbol?: string }): Promise<PaginatedData<Order>> {
+/** 订单（最新在前，分页） */
+export function listOrders(params: { trader_id?: string; symbol?: string; page?: number; size?: number }): Promise<PaginatedData<Order>> {
   return client.get('/orders', { params });
 }
 
@@ -23,7 +23,7 @@ export function orderFills(orderId: string): Promise<Fill[]> {
 }
 
 /** 平仓历史（最新在前，分页） */
-export function positionHistory(params: { trader_id?: string; symbol?: string; offset?: number; limit?: number }): Promise<PaginatedData<Position>> {
+export function positionHistory(params: { trader_id?: string; symbol?: string; page?: number; size?: number }): Promise<PaginatedData<Position>> {
   return client.get('/positions/history', { params });
 }
 
