@@ -477,10 +477,24 @@ export default function StrategiesPage() {
                           placeholder={f.ph}
                           value={(draft?.prompt_sections as Record<string, unknown> | undefined)?.[f.key] as string | undefined
                             ?? (selected.config?.promptSections as Record<string, string> | undefined)?.[camelKey(f.key)] ?? ''}
-                          onChange={(e) => setDraft((prev) => ({
-                            ...(prev ?? {}),
-                            prompt_sections: { ...((prev?.prompt_sections as Record<string, unknown>) ?? {}), [f.key]: e.target.value },
-                          }))}
+                          onChange={(e) => setDraft((prev) => {
+                            // 基础 = draft 内已编辑段 ∪ 已保存存量（camel 键转 snake 回填）。
+                            // 保证 draft.prompt_sections 始终带全四段：MergeConfigInto 对
+                            // prompt_sections 逐字段合并，但前端仍发全量（与 setKline 同模式，
+                            // 防御未来后端改回整体替换导致未编辑段被清空）。
+                            const base = { ...((prev?.prompt_sections as Record<string, unknown> | undefined) ?? {}) };
+                            const stored = selected.config?.promptSections as Record<string, string> | undefined;
+                            if (stored) {
+                              for (const [k, v] of Object.entries(stored)) {
+                                const snake = k.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
+                                if (!(snake in base)) base[snake] = v;
+                              }
+                            }
+                            return {
+                              ...(prev ?? {}),
+                              prompt_sections: { ...base, [f.key]: e.target.value },
+                            };
+                          })}
                         />
                       </div>
                     ))}
