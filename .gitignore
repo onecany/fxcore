@@ -27,6 +27,7 @@ fxcore
 fxcore-server
 fxcore-auto
 server
+!cmd/server/
 *.exe
 *.test
 *.out
