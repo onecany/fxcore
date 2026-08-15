@@ -1,5 +1,7 @@
 // 模型管理页：CRUD + 连通测试 + provider/model 联动下拉。
-import { useCallback, useEffect, useMemo, useState } from 'react';
+// 数据层 SWR（models + providers 双 key，写操作后 mutate）；列表项毛玻璃卡片化，测试区独立行。
+import { useMemo, useState } from 'react';
+import useSWR from 'swr';
 import * as modelApi from '../api/v1/modules/models';
 import type { AIModel } from '../api/v1/types/contract';
 import { PageHead, Panel, Badge, Alert } from '../components/ui';
@@ -8,8 +10,18 @@ const fmtTime = (raw?: string): string => (raw ? new Date(raw).toLocaleString('z
 const keyMask = (prefix?: string): string => prefix || '未配置';
 
 export default function ModelsPage() {
-  const [items, setItems] = useState<AIModel[]>([]);
-  const [providers, setProviders] = useState<modelApi.ProviderOption[]>([]);
+  // ===== SWR 数据层：模型库 + provider 目录 =====
+  const { data: itemsData, mutate, error: loadError } = useSWR<AIModel[]>(
+    ['/models', 'page'],
+    () => modelApi.listModels(),
+  );
+  const { data: providersData } = useSWR<modelApi.ProviderOption[]>(
+    ['/models/providers', 'page'],
+    () => modelApi.listProviders(),
+  );
+  const items = useMemo(() => itemsData ?? [], [itemsData]);
+  const providers = useMemo(() => providersData ?? [], [providersData]);
+
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,21 +34,10 @@ export default function ModelsPage() {
   const [apiKey, setApiKey] = useState('');
   const [temperature, setTemperature] = useState('0.7');
   const [baseUrl, setBaseUrl] = useState(''); // 仅 custom provider 必填（config.base_url）
-  // 每个模型的测试状态：testing 进行中 + result 成功/失败，绑定到对应模型行显示
+  // 每个模型的测试状态：testing 进行中 + result 成功/失败，绑定到对应模型卡片显示
   const [testStates, setTestStates] = useState<Record<string, { testing: boolean; success?: boolean; latency?: number; error?: string }>>({});
 
   const isCustom = provider === 'custom';
-
-  const load = useCallback(async () => {
-    try {
-      const [ms, ps] = await Promise.all([modelApi.listModels(), modelApi.listProviders()]);
-      setItems(ms ?? []);
-      setProviders(ps ?? []);
-      setError(null);
-    } catch (e) { setError(String(e)); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
 
   // provider 联动模型下拉
   const modelOptions = useMemo(() => {
@@ -89,7 +90,7 @@ export default function ModelsPage() {
         setMsg('模型已创建（API Key 已 RSA 加密落库）');
       }
       startCreate();
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   };
 
@@ -98,7 +99,7 @@ export default function ModelsPage() {
     try {
       await modelApi.deleteModel(m.id);
       if (editingId === m.id) startCreate();
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); }
   };
 
@@ -115,45 +116,45 @@ export default function ModelsPage() {
   return (
     <section>
       <PageHead title="模型" lead={<>AI 模型配置 · API Key 经 RSA 加密落库，响应零泄漏 · 支持连通测试</>} />
+      {loadError && <Alert kind="error">{String(loadError)}</Alert>}
       {error && <Alert kind="error">{error}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
       <div className="td-grid td-grid-2">
-        {/* 左：模型列表 */}
+        {/* 左：模型库（卡片化列表） */}
         <Panel title={`模型库 (${items.length})`}>
           {items.length === 0 ? (
-            <div className="muted mono" style={{ fontSize: 12 }}>// NO MODELS（点右侧创建）</div>
+            <div className="muted mono model-empty">// NO MODELS（点右侧创建）</div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="model-list">
               {items.map((m) => {
                 const ts = testStates[m.id];
                 return (
-                  <div
-                    key={m.id}
-                    className="sb-item"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => startEdit(m)}
-                  >
-                    <div className="row" style={{ justifyContent: 'space-between', width: '100%' }}>
-                      <span className="sb-name">{m.name}</span>
+                  <div key={m.id} className="model-card" onClick={() => startEdit(m)}>
+                    <div className="model-head">
+                      <span className="model-name">{m.name}</span>
                       <Badge state={m.status} />
                     </div>
-                    <div className="row wrap" style={{ marginTop: 4, gap: 6 }}>
-                      <span className="mono dim" style={{ fontSize: 11 }}>{m.provider} / {m.modelName}</span>
-                      <span className="mono dim" style={{ fontSize: 11 }}>key {keyMask(m.apiKeyPrefix)}</span>
+                    <div className="model-meta">
+                      <span className="mono dim">{m.provider} / {m.modelName}</span>
+                      <span className="mono dim">key {keyMask(m.apiKeyPrefix)}</span>
                     </div>
-                    <div className="row" style={{ marginTop: 6, gap: 6 }}>
-                      <button className="btn ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void test(m); }} disabled={ts?.testing}>⌁ 测试</button>
-                      <button className="btn danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={(e) => { e.stopPropagation(); void remove(m); }}>删除</button>
+                    {/* 独立测试区 */}
+                    <div className="model-test-row" onClick={(e) => e.stopPropagation()}>
+                      <button className="btn ghost btn-sm" onClick={() => void test(m)} disabled={ts?.testing}>⌁ 测试</button>
                       {ts?.testing ? (
-                        <span className="mono dim" style={{ fontSize: 10, marginLeft: 'auto' }}>测试中…</span>
+                        <span className="model-result testing">测试中…</span>
                       ) : ts?.success != null ? (
-                        <span className="mono" style={{ fontSize: 10, marginLeft: 'auto', color: ts.success ? 'var(--fxcore-up)' : 'var(--fxcore-down)' }}>
+                        <span className={`model-result ${ts.success ? 'ok' : 'fail'}`}>
                           {ts.success ? `✓ ${ts.latency ?? '-'}ms` : `✗ ${ts.error ?? '失败'}`}
                         </span>
                       ) : (
-                        <span className="mono dim" style={{ fontSize: 10, marginLeft: 'auto' }}>测试 {fmtTime(m.lastTestAt)}</span>
+                        <span className="model-result">测试 {fmtTime(m.lastTestAt)}</span>
                       )}
+                    </div>
+                    <div className="model-actions" onClick={(e) => e.stopPropagation()}>
+                      <button className="btn ghost btn-sm" onClick={() => startEdit(m)}>编辑</button>
+                      <button className="btn danger btn-sm" onClick={() => void remove(m)}>删除</button>
                     </div>
                   </div>
                 );
@@ -164,65 +165,73 @@ export default function ModelsPage() {
 
         {/* 右：表单（studio 分层：基础信息 / 连接 / 参数 三卡） */}
         <Panel title={editingId ? '编辑模型' : '新建模型'}>
-          <form onSubmit={(e) => void submit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <form onSubmit={(e) => void submit(e)} className="model-form">
             {/* 基础信息卡 */}
             <div className="form-section">
               <div className="form-section-title"><span className="form-section-num">01</span>基础信息</div>
-              <label className="dim" style={{ fontSize: 11 }}>别名（显示名）</label>
-              <input className="prompt-area" value={name} onChange={(e) => setName(e.target.value)} placeholder="如：deepseek 主力" />
-              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>提供商</label>
-              <select className="prompt-area" value={provider} onChange={(e) => { setProvider(e.target.value); setModelName(''); }}>
-                <option value="">— 选择提供商 —</option>
-                {providers.map((p) => <option key={p.provider} value={p.provider}>{p.provider}</option>)}
-              </select>
-              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>模型</label>
-              {isCustom ? (
-                <input
-                  className="prompt-area"
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  placeholder="自定义模型名，如 llama-3.1-8b / gpt-4o-mini"
-                />
-              ) : (
-                <select className="prompt-area" value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
-                  <option value="">— 选择模型 —</option>
-                  {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
+              <div className="field">
+                <label className="form-label">别名（显示名）</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="如：deepseek 主力" />
+              </div>
+              <div className="field">
+                <label className="form-label">提供商</label>
+                <select value={provider} onChange={(e) => { setProvider(e.target.value); setModelName(''); }}>
+                  <option value="">— 选择提供商 —</option>
+                  {providers.map((p) => <option key={p.provider} value={p.provider}>{p.provider}</option>)}
                 </select>
-              )}
+              </div>
+              <div className="field">
+                <label className="form-label">模型</label>
+                {isCustom ? (
+                  <input
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="自定义模型名，如 llama-3.1-8b / gpt-4o-mini"
+                  />
+                ) : (
+                  <select value={modelName} onChange={(e) => setModelName(e.target.value)} disabled={!provider}>
+                    <option value="">— 选择模型 —</option>
+                    {modelOptions.map((mn) => <option key={mn} value={mn}>{mn}</option>)}
+                  </select>
+                )}
+              </div>
             </div>
 
             {/* 连接卡 */}
             <div className="form-section">
               <div className="form-section-title"><span className="form-section-num">02</span>连接</div>
-              <label className="dim" style={{ fontSize: 11 }}>
-                API Key {editingId ? '（留空保留原 Key）' : ''}
-              </label>
-              <input className="prompt-area" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." autoComplete="off" />
+              <div className="field">
+                <label className="form-label">
+                  API Key {editingId ? '（留空保留原 Key）' : ''}
+                </label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." autoComplete="off" />
+              </div>
               {isCustom && (
-                <>
-                  <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>
-                    Base URL <span style={{ color: 'var(--fxcore-down)' }}>（custom 必填，https）</span>
+                <div className="field">
+                  <label className="form-label">
+                    Base URL <span className="form-required">（custom 必填，https）</span>
                   </label>
                   <input
-                    className="prompt-area"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
                     placeholder="https://your-endpoint.example.com/v1"
                     autoComplete="off"
                   />
-                </>
+                </div>
               )}
             </div>
 
             {/* 参数卡 */}
             <div className="form-section">
               <div className="form-section-title"><span className="form-section-num">03</span>参数</div>
-              <label className="dim" style={{ fontSize: 11 }}>温度 temperature</label>
-              <input className="prompt-area" type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+              <div className="field">
+                <label className="form-label">温度 temperature</label>
+                <input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+              </div>
             </div>
 
-            <div className="row" style={{ gap: 8, marginTop: 4 }}>
-              <button className="btn primary" type="submit" disabled={busy} style={{ flex: 1 }}>
+            <div className="form-actions">
+              <button className="btn primary" type="submit" disabled={busy}>
                 {busy ? '处理中…' : editingId ? '● 保存修改' : '＋ 创建模型'}
               </button>
               {editingId && (
