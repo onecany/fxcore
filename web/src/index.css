@@ -443,10 +443,13 @@ body::after {
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px; }
 
 .stat-card {
+  position: relative;
   padding: 14px 16px;
-  background: var(--fxcore-panel);
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .stat-card:hover { border-color: var(--fxcore-panel-border-strong); box-shadow: var(--fxcore-glow-accent); }
@@ -651,12 +654,27 @@ body::after {
 .mt { margin-top: 16px; }
 .mb { margin-bottom: 14px; }
 
-/* 表单分区卡（studio 分层：基础信息 / 连接 / 参数） */
+/* 表单分区卡（studio 分层：基础信息 / 连接 / 参数，毛玻璃） */
 .form-section {
-  padding: 12px;
-  background: var(--fxcore-panel-deep);
+  position: relative;
+  padding: 14px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
-  border-radius: var(--fxcore-r-sm);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.28), transparent);
 }
 .form-section-title {
   display: flex;
@@ -687,26 +705,31 @@ body::after {
 }
 
 /* ========== 回测页布局 ========== */
-/* 新建回放：参数 / 时间 / 执行 三列卡 */
-.bt-form-3 {
+/* 新建回放：标的 / 资金 / 时间 / 执行 四列卡 */
+.bt-form-4 {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
-/* 参数卡内字段 2 列网格（压缩高度） */
-.bt-field-2 {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px 10px;
-  margin-top: 8px;
-}
 @media (max-width: 1100px) {
-  .bt-form-3 { grid-template-columns: minmax(0, 1fr); }
+  .bt-form-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 900px) {
-  .bt-field-2 { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 640px) {
+  .bt-form-4 { grid-template-columns: minmax(0, 1fr); }
 }
+/* 回测表单字段（label + 输入对齐策略页 40px 行高） */
+.bt-label {
+  font-size: 12.5px;
+  color: var(--fxcore-text-dim);
+  letter-spacing: 0.05em;
+}
+.bt-form-4 input, .bt-form-4 select {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+}
+.bt-submit { width: 100%; margin-top: 2px; }
 
 /* ========== 交易所余额横条（交易终端顶部） ========== */
 .exb-bar {
@@ -2709,3 +2732,116 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .preview-hint { font-size: 12px; padding: 10px 0; }
 /* 提示词阅览区滚动定位（吸顶导航下方留白） */
 .prompt-preview-target { scroll-margin-top: 84px; }
+
+/* ========== 回测页激进版（四卡表单 + K线面板 + 编队卡片网格） ========== */
+/* K 线面板搜索栏（对齐 40px 行高） */
+.bt-kline-field { flex: 1; min-width: 220px; }
+.bt-kline-int { min-width: 130px; }
+.bt-kline-go { align-items: flex-end; }
+.bt-kline-empty { padding: 32px 0; text-align: center; }
+
+/* 编队表头（自动刷新状态 + 手动刷新） */
+.bt-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.bt-auto-hint { font-size: 11px; }
+.bt-empty { padding: 28px 0; text-align: center; font-size: 12px; }
+
+/* 运行编队卡片网格 */
+.bt-run-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .bt-run-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.bt-run-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.bt-run-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bt-run-id {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bt-run-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.bt-run-state-label { font-size: 10.5px; }
+/* 进度条 */
+.bt-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  overflow: hidden;
+}
+.bt-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(240, 185, 11, 0.4), var(--fxcore-accent));
+  box-shadow: 0 0 8px rgba(240, 185, 11, 0.4);
+  transition: width 0.4s ease;
+}
+/* 卡片指标行 */
+.bt-run-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.bt-metric {
+  padding: 6px 10px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+  min-width: 0;
+}
+.bt-metric-label {
+  display: block;
+  font-family: var(--fxcore-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--fxcore-text-faint);
+}
+.bt-metric-value {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bt-metric-syms { font-size: 11.5px; font-weight: 500; }
+.bt-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--fxcore-panel-border);
+  padding-top: 10px;
+}
