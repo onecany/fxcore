@@ -894,7 +894,9 @@ body::after {
 
 .studio-sidebar {
   border-right: 1px solid var(--fxcore-panel-border);
-  background: var(--fxcore-panel-deep);
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   padding: 12px;
   overflow-y: auto;
   max-height: calc(100vh - 260px);
@@ -947,13 +949,25 @@ body::after {
 
 .studio-main { padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 260px); }
 
-/* 策略编辑区块（统一 section 骨架：边框 + 圆角 + 面板底 + 内边距） */
+/* 策略编辑区块（毛玻璃卡片） */
 .studio-section {
+  position: relative;
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
-  background: var(--fxcore-panel);
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   padding: 14px;
   margin-bottom: 12px;
+}
+.studio-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.28), transparent);
 }
 .studio-section-title {
   display: flex;
@@ -967,21 +981,23 @@ body::after {
   margin-bottom: 10px;
 }
 
-/* 编辑 tab 两列：左配置（风格/币源/风控）+ 右提示词（sticky） */
+/* 编辑三栏：左风格/风控（230）| 中提示词（1fr）| 右币源/K线/指标（290） */
 .studio-editor-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 230px) minmax(0, 1fr) minmax(0, 290px);
   gap: 12px;
   align-items: start;
+  margin-bottom: 14px;
 }
-.studio-editor-left, .studio-editor-right { min-width: 0; }
-.studio-editor-right {
-  position: sticky;
-  top: 12px;
-}
+.studio-col-config, .studio-col-prompt, .studio-col-market { min-width: 0; }
 @media (max-width: 1100px) {
-  .studio-editor-grid { grid-template-columns: 1fr; }
-  .studio-editor-right { position: static; }
+  .studio-editor-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 290px); }
+  .studio-col-config { grid-column: 1 / -1; }
+  .studio-col-config .style-cards { flex-wrap: wrap; }
+}
+@media (max-width: 900px) {
+  .studio-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .studio-col-config { grid-column: auto; }
 }
 
 /* 二级 tab（编辑 | 提示词） */
@@ -2596,3 +2612,104 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   padding-top: 10px;
 }
 .centered { text-align: center; padding: 18px 0; }
+
+/* ========== 策略工作室激进版（toolbar + 三栏 + 试跑合并） ========== */
+/* 毛玻璃操作条 */
+.studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.st-info { min-width: 0; }
+.st-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  letter-spacing: 0.02em;
+}
+.st-meta { font-size: 12px; margin-top: 2px; }
+.st-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-empty { padding: 40px 0; text-align: center; }
+.sb-empty { padding: 14px 8px; font-size: 12px; }
+.sb-new { flex: 1; min-width: 0; }
+
+/* 左栏：风格卡竖排 + 风控网格 */
+.style-cards-col { flex-direction: column; }
+.style-cards-col .style-card { width: 100%; min-width: 0; }
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.risk-cell {
+  padding: 8px 10px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+}
+.risk-cell-label {
+  font-family: var(--fxcore-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--fxcore-text-faint);
+}
+.risk-cell-value {
+  font-family: var(--fxcore-font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  margin-top: 2px;
+}
+
+/* 中栏：提示词编辑器 */
+.prompt-desc { font-size: 11px; margin-bottom: 10px; }
+.prompt-sec { margin-bottom: 10px; }
+.prompt-sec-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fxcore-text-dim);
+  margin-bottom: 6px;
+}
+.prompt-sec-gap { margin-top: 14px; }
+.prompt-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.dirty-tag { color: var(--fxcore-accent); font-size: 11px; }
+
+/* 右栏：币源 / K 线 / 指标 */
+.field-full { grid-column: 1 / -1; }
+.row-gap { gap: 10px; }
+.ind-row { margin-top: 4px; }
+.num-sm { width: 90px; }
+.num-md { width: 150px; }
+.chips-top { margin-top: 8px; }
+.src-note { font-size: 11px; margin-top: 8px; }
+/* chip 选中态（收敛原 inline 金色样式） */
+.chip.on {
+  background: rgba(240, 185, 11, 0.14) !important;
+  color: var(--fxcore-accent) !important;
+  border-color: rgba(240, 185, 11, 0.45) !important;
+}
+
+/* 底部试跑 / 预览区 */
+.test-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.test-model { min-width: 220px; margin-bottom: 0; }
+.test-draft-hint { font-size: 11px; }
+.test-result { margin-top: 12px; }
+.test-table { margin-top: 10px; }
+.test-prompt-details { margin-top: 8px; }
+.test-prompt-details summary { cursor: pointer; font-size: 12px; }
+.preview-hint { font-size: 12px; padding: 10px 0; }
