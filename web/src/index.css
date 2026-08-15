@@ -2521,3 +2521,78 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .dash-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .dash-block { margin-top: 10px; }
 .dash-subhead { font-size: 10.5px; letter-spacing: 0.1em; margin-bottom: 4px; }
+
+/* ========== 交易所接入页（激进版：KPI + 分卡表单 + 账户卡片网格） ========== */
+.acc-kpi { margin-bottom: 14px; }
+.acc-form { display: flex; flex-direction: column; gap: 12px; }
+.acc-checkbox { padding-top: 8px; }
+.acc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .acc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .acc-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.acc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 15px 16px;
+}
+.acc-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.acc-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.acc-name {
+  font-family: var(--fxcore-font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-meta {
+  font-size: 10.5px;
+  color: var(--fxcore-text-faint);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.acc-status.on {
+  color: var(--fxcore-up);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.07);
+}
+.acc-status.off {
+  color: var(--fxcore-text-faint);
+  border: 1px solid var(--fxcore-panel-border);
+  background: transparent;
+}
+.acc-actions {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--fxcore-panel-border);
+  padding-top: 10px;
+}
+.centered { text-align: center; padding: 18px 0; }
