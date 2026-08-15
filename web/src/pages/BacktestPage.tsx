@@ -1,9 +1,11 @@
-// Backtest 页面：回放控制台 + K 线预览 + 运行编队 + 状态轮询。
+// Backtest 页面：回放控制台（四卡表单）+ K 线预览 + 运行编队卡片网格。
+// 数据层 SWR：runs 有活跃运行 3s 自动轮询（refreshInterval 动态），写操作后 mutate。
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import * as backtestApi from '../api/v1/modules/backtest';
 import * as dataApi from '../api/v1/modules/data';
 import type { BacktestConfig, RunSummary, KlineDTO, BacktestState } from '../api/v1/types/contract';
-import { PageHead, Panel, Badge, Alert, StatCard } from '../components/ui';
+import { PageHead, Panel, Badge, Alert } from '../components/ui';
 import KlineChart from '../components/KlineChart';
 import { useT } from '../stores/i18nStore';
 import { fmtTime } from '../utils/format';
@@ -43,7 +45,6 @@ const toUnix = (v: string): number | null => {
 
 export default function BacktestPage() {
   const t = useT();
-  const [runs, setRuns] = useState<RunSummary[]>([]);
   const [form, setForm] = useState({
     symbols: 'BTC-USDT,ETH-USDT',
     startTime: '',
@@ -57,7 +58,15 @@ export default function BacktestPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
+
+  // ===== 运行编队：SWR + 有活跃运行 3s 轮询（无活跃自动停） =====
+  const { data, mutate } = useSWR<{ items: RunSummary[] }>(
+    ['/backtest/runs', 'page'],
+    () => backtestApi.listBacktestRuns({ size: 20 }),
+    { refreshInterval: (d) => (d?.items ?? []).some((r) => r.state === 'running' || r.state === 'created') ? 3000 : 0 },
+  );
+  const runs = useMemo(() => data?.items ?? [], [data]);
+  const hasActive = useMemo(() => runs.some((r) => r.state === 'running' || r.state === 'created'), [runs]);
 
   // ===== K 线预览（提交态分离：输入不触发请求，拉取/回车才生效） =====
   const [klineForm, setKlineForm] = useState({ symbol: 'BTC-USDT', interval: '15m' });
@@ -94,22 +103,6 @@ export default function BacktestPage() {
   // 数据源可能返回降序：范围标注用升序视图（最早 → 最新），图表组件内部已排序
   const sortedKlines = useMemo(() => [...klines].sort((a, b) => a.timestamp - b.timestamp), [klines]);
 
-  const load = useCallback(async () => {
-    try { const d = await backtestApi.listBacktestRuns({ size: 20 }); setRuns(d.items); setError(null); } catch (e) { setError(String(e)); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    if (!polling) return;
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
-  }, [polling, load]);
-
-  useEffect(() => {
-    setPolling(runs.some((r) => r.state === 'running' || r.state === 'created'));
-  }, [runs]);
-
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const start = async (e: React.FormEvent) => {
@@ -140,16 +133,16 @@ export default function BacktestPage() {
     try {
       const meta = await backtestApi.startBacktest(cfg);
       setMsg(`回放启动：${meta.runId}`);
-      void load();
+      void mutate();
     } catch (err) { setError(String(err)); } finally { setBusy(false); }
   };
 
   const control = async (runId: string, action: backtestApi.BacktestControlAction) => {
-    try { await backtestApi.controlBacktest(runId, action); void load(); } catch (err) { setError(String(err)); }
+    try { await backtestApi.controlBacktest(runId, action); void mutate(); } catch (err) { setError(String(err)); }
   };
   const remove = async (runId: string) => {
     if (!window.confirm('删除该回测（含关联数据）？')) return;
-    try { await backtestApi.deleteBacktest(runId); void load(); } catch (err) { setError(String(err)); }
+    try { await backtestApi.deleteBacktest(runId); void mutate(); } catch (err) { setError(String(err)); }
   };
 
   const active = runs.filter((r) => r.state === 'running' || r.state === 'created').length;
@@ -164,57 +157,80 @@ export default function BacktestPage() {
       {error && <Alert kind="error">{error}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
+      {/* KPI 概览（毛玻璃） */}
       <div className="stat-grid">
-        <StatCard label="回放中" value={String(active)} tone={active > 0 ? 'up' : 'plain'} hint="3s 自动刷新" />
-        <StatCard label="已完成" value={String(completed)} />
-        <StatCard label="总运行" value={String(runs.length)} />
+        <div className="stat-card">
+          <div className="label">回放中</div>
+          <div className={`value ${active > 0 ? 'up' : ''}`}>{active}</div>
+          <div className="hint">3s 自动刷新</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">已完成</div>
+          <div className="value">{completed}</div>
+          <div className="hint">历史回放</div>
+        </div>
+        <div className="stat-card">
+          <div className="label">总运行</div>
+          <div className="value">{runs.length}</div>
+          <div className="hint">本次会话</div>
+        </div>
       </div>
 
       <Panel title="新建回放" className="mb">
         <form onSubmit={(e) => void start(e)}>
-          <div className="bt-form-3">
-            {/* 01 参数卡 */}
+          <div className="bt-form-4">
+            {/* 01 标的卡 */}
             <div className="form-section">
-              <div className="form-section-title"><span className="form-section-num">01</span>参数</div>
-              <div className="bt-field-2">
-                <div>
-                  <label className="dim" style={{ fontSize: 11 }}>币种（逗号分隔）</label>
-                  <input value={form.symbols} onChange={(e) => set('symbols', e.target.value)} placeholder="BTC-USDT,ETH-USDT" />
-                </div>
-                <div>
-                  <label className="dim" style={{ fontSize: 11 }}>周期（分钟）</label>
-                  <input type="number" min={3} value={form.cadence} onChange={(e) => set('cadence', e.target.value)} />
-                </div>
-                <div>
-                  <label className="dim" style={{ fontSize: 11 }}>初始资金 USDT</label>
-                  <input type="number" min={1} value={form.initialBalance} onChange={(e) => set('initialBalance', e.target.value)} />
-                </div>
-                <div>
-                  <label className="dim" style={{ fontSize: 11 }}>杠杆倍数</label>
-                  <input type="number" min={1} max={20} value={form.leverage} onChange={(e) => set('leverage', e.target.value)} />
-                </div>
+              <div className="form-section-title"><span className="form-section-num">01</span>标的</div>
+              <div className="field">
+                <label className="bt-label">币种（逗号分隔）</label>
+                <input value={form.symbols} onChange={(e) => set('symbols', e.target.value)} placeholder="BTC-USDT,ETH-USDT" />
+              </div>
+              <div className="field">
+                <label className="bt-label">周期（分钟）</label>
+                <input type="number" min={3} value={form.cadence} onChange={(e) => set('cadence', e.target.value)} />
               </div>
             </div>
-            {/* 02 时间卡 */}
+            {/* 02 资金卡 */}
             <div className="form-section">
-              <div className="form-section-title"><span className="form-section-num">02</span>时间</div>
-              <label className="dim" style={{ fontSize: 11 }}>开始（留空 = 24 小时前）</label>
-              <input type="datetime-local" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} />
-              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>结束（留空 = 现在）</label>
-              <input type="datetime-local" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} />
+              <div className="form-section-title"><span className="form-section-num">02</span>资金</div>
+              <div className="field">
+                <label className="bt-label">初始资金 USDT</label>
+                <input type="number" min={1} value={form.initialBalance} onChange={(e) => set('initialBalance', e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="bt-label">杠杆倍数</label>
+                <input type="number" min={1} max={20} value={form.leverage} onChange={(e) => set('leverage', e.target.value)} />
+              </div>
             </div>
-            {/* 03 执行卡 */}
+            {/* 03 时间卡 */}
             <div className="form-section">
-              <div className="form-section-title"><span className="form-section-num">03</span>执行</div>
-              <label className="dim" style={{ fontSize: 11 }}>成交定价</label>
-              <select value={form.fillPolicy} onChange={(e) => set('fillPolicy', e.target.value)}>
-                {FILL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <label className="dim" style={{ fontSize: 11, marginTop: 8 }}>交易风格</label>
-              <select value={form.promptVariant} onChange={(e) => set('promptVariant', e.target.value)}>
-                {VARIANT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <button className="btn primary" type="submit" disabled={busy} style={{ width: '100%', marginTop: 14 }}>
+              <div className="form-section-title"><span className="form-section-num">03</span>时间</div>
+              <div className="field">
+                <label className="bt-label">开始（留空 = 24 小时前）</label>
+                <input type="datetime-local" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} />
+              </div>
+              <div className="field">
+                <label className="bt-label">结束（留空 = 现在）</label>
+                <input type="datetime-local" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} />
+              </div>
+            </div>
+            {/* 04 执行卡 */}
+            <div className="form-section">
+              <div className="form-section-title"><span className="form-section-num">04</span>执行</div>
+              <div className="field">
+                <label className="bt-label">成交定价</label>
+                <select value={form.fillPolicy} onChange={(e) => set('fillPolicy', e.target.value)}>
+                  {FILL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label className="bt-label">交易风格</label>
+                <select value={form.promptVariant} onChange={(e) => set('promptVariant', e.target.value)}>
+                  {VARIANT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <button className="btn primary bt-submit" type="submit" disabled={busy}>
                 {busy ? '启动中…' : '⌁ 启动回放'}
               </button>
             </div>
@@ -223,85 +239,105 @@ export default function BacktestPage() {
       </Panel>
 
       <Panel title={t.kline.title} className="mb">
-          <form className="kline-bar" onSubmit={(e) => void submitKline(e)}>
-            <div className="field" style={{ flex: 1, minWidth: 220 }}>
-              <label>{t.kline.symbol}</label>
-              <input
-                value={klineForm.symbol}
-                onChange={(e) => setKlineForm((f) => ({ ...f, symbol: e.target.value }))}
-                placeholder="BTC-USDT"
-              />
-            </div>
-            <div className="field" style={{ minWidth: 110 }}>
-              <label>{t.kline.interval}</label>
-              <select
-                value={klineForm.interval}
-                onChange={(e) => setKlineForm((f) => ({ ...f, interval: e.target.value }))}
-              >
-                {KLINE_INTERVALS.map((i) => <option key={i} value={i}>{i}</option>)}
-              </select>
-            </div>
-            <div className="row">
-              <button className="btn primary" type="submit">⟳ {t.kline.fetch}</button>
-            </div>
-            {klines.length > 0 && (
-              <div className="kline-stats mono dim">
-                <span>{sortedKlines.length} {t.kline.bars} · {klineQuery.symbol} · {klineQuery.interval}</span>
-                <br />
-                <span>{t.kline.range} {fmtTime(sortedKlines[0]?.timestamp)} → {fmtTime(sortedKlines[sortedKlines.length - 1]?.timestamp)} · {t.kline.last} {fmtTime(sortedKlines[sortedKlines.length - 1]?.timestamp)}</span>
-              </div>
-            )}
-          </form>
-          {klineError && <Alert kind="error">{t.kline.fetchFailed}：{klineError}</Alert>}
-          <div className="kline-panel">
-            {klineLoading && <div className="kline-loading">{t.kline.loading}</div>}
-            {klines.length > 0 ? (
-              <KlineChart data={sortedKlines} height={300} />
-            ) : (
-              !klineLoading && !klineError && <div className="muted mono" style={{ padding: '28px 0', textAlign: 'center' }}>{t.kline.noData}</div>
-            )}
+        <form className="kline-bar" onSubmit={(e) => void submitKline(e)}>
+          <div className="field bt-kline-field">
+            <label>{t.kline.symbol}</label>
+            <input
+              value={klineForm.symbol}
+              onChange={(e) => setKlineForm((f) => ({ ...f, symbol: e.target.value }))}
+              placeholder="BTC-USDT"
+            />
           </div>
-        </Panel>
+          <div className="field bt-kline-int">
+            <label>{t.kline.interval}</label>
+            <select
+              value={klineForm.interval}
+              onChange={(e) => setKlineForm((f) => ({ ...f, interval: e.target.value }))}
+            >
+              {KLINE_INTERVALS.map((i) => <option key={i} value={i}>{i}</option>)}
+            </select>
+          </div>
+          <div className="row bt-kline-go">
+            <button className="btn primary" type="submit">⟳ {t.kline.fetch}</button>
+          </div>
+          {klines.length > 0 && (
+            <div className="kline-stats mono dim">
+              <span>{sortedKlines.length} {t.kline.bars} · {klineQuery.symbol} · {klineQuery.interval}</span>
+              <br />
+              <span>{t.kline.range} {fmtTime(sortedKlines[0]?.timestamp)} → {fmtTime(sortedKlines[sortedKlines.length - 1]?.timestamp)} · {t.kline.last} {fmtTime(sortedKlines[sortedKlines.length - 1]?.timestamp)}</span>
+            </div>
+          )}
+        </form>
+        {klineError && <Alert kind="error">{t.kline.fetchFailed}：{klineError}</Alert>}
+        <div className="kline-panel">
+          {klineLoading && <div className="kline-loading">{t.kline.loading}</div>}
+          {klines.length > 0 ? (
+            <KlineChart data={sortedKlines} height={320} />
+          ) : (
+            !klineLoading && !klineError && <div className="muted mono bt-kline-empty">{t.kline.noData}</div>
+          )}
+        </div>
+      </Panel>
 
-        <Panel title="运行编队" className="mb">
-          <div className="row" style={{ marginBottom: 8 }}>
-            <span className="dim" style={{ fontSize: 11 }}>3s 自动刷新</span>
-            <button className="btn ghost" style={{ marginLeft: 'auto', padding: '2px 10px', fontSize: 11 }} onClick={() => void load()}>⟳ 刷新</button>
-          </div>
-          <div className="table-wrap"><table className="data-table">
-            <thead>
-              <tr><th>ID</th><th>状态</th><th>进度</th><th>权益</th><th>回撤</th><th>币种</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.runId}>
-                  <td className="mono">{r.label || r.runId.slice(0, 10)}</td>
-                  <td>
-                    <Badge state={r.state} />
-                    <span className="dim" style={{ fontSize: 10, marginLeft: 4 }}>{STATE_LABEL[r.state] ?? r.state}</span>
-                  </td>
-                  <td className="mono">{r.progressPct != null ? `${Math.round(r.progressPct * 100)}%` : '—'}</td>
-                  <td className="mono">{r.equityLast != null ? r.equityLast.toFixed(2) : '—'}</td>
-                  <td className="mono" style={{ color: (r.maxDrawdownPct ?? 0) > 0 ? 'var(--fxcore-down)' : undefined }}>
-                    {r.maxDrawdownPct != null ? `${(r.maxDrawdownPct * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td className="mono">{(r.symbols ?? []).join(', ') || String(r.symbolCount ?? '—')}</td>
-                  <td>
-                    <span className="row">
-                      {r.state === 'running' && <button className="btn" onClick={() => void control(r.runId, 'pause')}>⏸ 暂停</button>}
-                      {r.state === 'paused' && <button className="btn primary" onClick={() => void control(r.runId, 'resume')}>▶ 恢复</button>}
-                      {(r.state === 'running' || r.state === 'paused') && (
-                        <button className="btn" onClick={() => void control(r.runId, 'stop')}>■ 停止</button>
-                      )}
-                      <button className="btn danger" onClick={() => void remove(r.runId)}>删除</button>
+      <Panel title={`运行编队 (${runs.length})`}>
+        <div className="bt-table-head">
+          <span className="dim bt-auto-hint">{hasActive ? '● 有活跃回放，3s 自动刷新' : '已就绪 · 无活跃回放'}</span>
+          <button className="btn ghost btn-sm" onClick={() => void mutate()}>⟳ 刷新</button>
+        </div>
+        {runs.length === 0 ? (
+          <div className="muted mono bt-empty">// NO REPLAYS RECORDED</div>
+        ) : (
+          <div className="bt-run-grid">
+            {runs.map((r) => {
+              const pct = r.progressPct != null ? Math.round(r.progressPct * 100) : null;
+              return (
+                <div className="bt-run-card" key={r.runId}>
+                  <div className="bt-run-head">
+                    <span className="bt-run-id mono">{r.label || r.runId.slice(0, 10)}</span>
+                    <span className="bt-run-state">
+                      <Badge state={r.state} />
+                      <span className="dim bt-run-state-label">{STATE_LABEL[r.state] ?? r.state}</span>
                     </span>
-                  </td>
-                </tr>
-              ))}
-              {runs.length === 0 && <tr><td colSpan={7} className="empty">// NO REPLAYS RECORDED</td></tr>}
-            </tbody>
-          </table></div>
-        </Panel>
+                  </div>
+                  {pct != null && (
+                    <div className="bt-progress">
+                      <div className="bt-progress-bar" style={{ width: `${pct}%` }} />
+                    </div>
+                  )}
+                  <div className="bt-run-metrics">
+                    <div className="bt-metric">
+                      <span className="bt-metric-label">进度</span>
+                      <span className="bt-metric-value mono">{pct != null ? `${pct}%` : '—'}</span>
+                    </div>
+                    <div className="bt-metric">
+                      <span className="bt-metric-label">权益</span>
+                      <span className="bt-metric-value mono">{r.equityLast != null ? r.equityLast.toFixed(2) : '—'}</span>
+                    </div>
+                    <div className="bt-metric">
+                      <span className="bt-metric-label">回撤</span>
+                      <span className="bt-metric-value mono" style={{ color: (r.maxDrawdownPct ?? 0) > 0 ? 'var(--fxcore-down)' : undefined }}>
+                        {r.maxDrawdownPct != null ? `${(r.maxDrawdownPct * 100).toFixed(1)}%` : '—'}
+                      </span>
+                    </div>
+                    <div className="bt-metric">
+                      <span className="bt-metric-label">币种</span>
+                      <span className="bt-metric-value mono bt-metric-syms">{(r.symbols ?? []).join(', ') || String(r.symbolCount ?? '—')}</span>
+                    </div>
+                  </div>
+                  <div className="bt-run-actions">
+                    {r.state === 'running' && <button className="btn btn-sm" onClick={() => void control(r.runId, 'pause')}>⏸ 暂停</button>}
+                    {r.state === 'paused' && <button className="btn primary btn-sm" onClick={() => void control(r.runId, 'resume')}>▶ 恢复</button>}
+                    {(r.state === 'running' || r.state === 'paused') && (
+                      <button className="btn btn-sm" onClick={() => void control(r.runId, 'stop')}>■ 停止</button>
+                    )}
+                    <button className="btn danger btn-sm" onClick={() => void remove(r.runId)}>删除</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
     </section>
   );
 }
