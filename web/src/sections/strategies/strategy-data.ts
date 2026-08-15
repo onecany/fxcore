@@ -130,12 +130,16 @@ export const COIN_SOURCE_TYPES: { value: CoinSourceType; name: string; note: str
   { value: 'mixed', name: 'mixed · 混合', note: '多源混合' },
 ];
 
-/** 逗号分隔字符串 ↔ 币种数组 */
+/** 逗号分隔字符串 ↔ 币种数组（兼容中文全角逗号，2026-08 实锤：全角逗号曾导致
+ * static_coins 落库成单元素畸形符号，引擎拉 K 线全部失败、USER PROMPT 无 Market data） */
 export function coinsToStr(arr: string[] | undefined): string {
   return (arr ?? []).join(', ');
 }
 export function strToCoins(s: string): string[] {
-  return s.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  return s
+    .split(/[，,]/)
+    .map((c) => c.trim().toUpperCase())
+    .filter(Boolean);
 }
 
 /** snake_case → camelCase（prompt_sections 前端字段名） */
