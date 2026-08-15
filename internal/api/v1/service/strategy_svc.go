@@ -217,7 +217,8 @@ func (svc *StrategyService) GetActive(userID string) (*model.Strategy, *middlewa
 // MergeConfigInto 把请求 config（StrategyConfig JSON）按顶层 section 合并进目标。
 // 规则：请求中 source_type 非空 → 整体替换 coin_source；klines.primary_timeframe
 // 非空 → 整体替换 indicators；max_positions>0 → 整体替换 risk_control；
-// custom_prompt/prompt_sections/grid_config 显式覆盖（允许清空）。
+// custom_prompt 显式覆盖（允许清空）；prompt_sections 逐字段合并（指针字段区分
+// 未提及 vs 显式清空，未提及段保留存量）；grid_config 整体替换。
 // 导出供 handler 的 preview-prompt 复用。
 func MergeConfigInto(dst *dto.StrategyConfig, raw json.RawMessage) *middleware.APIError {
 	var req struct {
@@ -228,8 +229,13 @@ func MergeConfigInto(dst *dto.StrategyConfig, raw json.RawMessage) *middleware.A
 		Indicators     *dto.IndicatorConfig   `json:"indicators"`
 		RiskControl    *dto.RiskControlConfig `json:"risk_control"`
 		CustomPrompt   *string                `json:"custom_prompt"`
-		PromptSections *dto.PromptSections    `json:"prompt_sections"`
-		GridConfig     json.RawMessage        `json:"grid_config"`
+		PromptSections *struct {
+			RoleDefinition   *string `json:"role_definition"`
+			TradingFrequency *string `json:"trading_frequency"`
+			EntryStandards   *string `json:"entry_standards"`
+			DecisionProcess  *string `json:"decision_process"`
+		} `json:"prompt_sections"`
+		GridConfig json.RawMessage `json:"grid_config"`
 	}
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return middleware.BadRequest("invalid config: "+err.Error(), nil)
@@ -255,8 +261,24 @@ func MergeConfigInto(dst *dto.StrategyConfig, raw json.RawMessage) *middleware.A
 	if req.CustomPrompt != nil {
 		dst.CustomPrompt = *req.CustomPrompt
 	}
+	// prompt_sections 逐字段合并：未提及的段保留存量，显式传空字符串可清空该段。
+	// （整体替换曾导致前端只编辑一段保存后其余三段被清空，2026-08 实锤）
 	if req.PromptSections != nil {
-		dst.PromptSections = req.PromptSections
+		if dst.PromptSections == nil {
+			dst.PromptSections = &dto.PromptSections{}
+		}
+		if req.PromptSections.RoleDefinition != nil {
+			dst.PromptSections.RoleDefinition = *req.PromptSections.RoleDefinition
+		}
+		if req.PromptSections.TradingFrequency != nil {
+			dst.PromptSections.TradingFrequency = *req.PromptSections.TradingFrequency
+		}
+		if req.PromptSections.EntryStandards != nil {
+			dst.PromptSections.EntryStandards = *req.PromptSections.EntryStandards
+		}
+		if req.PromptSections.DecisionProcess != nil {
+			dst.PromptSections.DecisionProcess = *req.PromptSections.DecisionProcess
+		}
 	}
 	if len(req.GridConfig) > 0 {
 		dst.GridConfig = &dto.GridStrategyConfig{}
