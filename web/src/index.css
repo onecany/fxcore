@@ -2941,3 +2941,110 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   gap: 8px;
 }
 .model-empty { padding: 28px 0; text-align: center; font-size: 12px; }
+
+/* ========== 辩论页激进版（分卡表单 + 会话卡片列表 + 详情收敛） ========== */
+/* 创建表单（分卡 + 输入 40px） */
+.db-form { display: flex; flex-direction: column; gap: 12px; }
+.db-form .form-section input, .db-form .form-section select {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+}
+.db-field-hint { font-size: 11px; margin-top: 4px; }
+
+/* 会话列表头（自动刷新状态 + 手动刷新） */
+.db-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.db-auto-hint { font-size: 11px; }
+.db-empty { padding: 28px 0; text-align: center; font-size: 12px; }
+
+/* 会话卡片列表 */
+.db-session-list { display: flex; flex-direction: column; gap: 10px; }
+.db-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px 15px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.db-session-card:hover { border-color: var(--fxcore-panel-border-strong); box-shadow: var(--fxcore-glow-accent); }
+.db-session-card.active {
+  border-color: rgba(240, 185, 11, 0.55);
+  background: linear-gradient(160deg, rgba(240, 185, 11, 0.08), rgba(10, 16, 30, 0.82));
+  box-shadow: 0 0 22px rgba(240, 185, 11, 0.14);
+}
+.db-session-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.db-session-info { display: flex; flex-direction: column; min-width: 0; }
+.db-session-name {
+  font-family: var(--fxcore-font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-session-meta {
+  font-size: 11px;
+  color: var(--fxcore-text-faint);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.db-session-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+}
+.db-session-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--fxcore-panel-border);
+  padding-top: 9px;
+}
+.db-session-round {
+  font-size: 11.5px;
+  color: var(--fxcore-text-dim);
+}
+.db-session-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 详情面板收敛 */
+.db-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.db-empty-sm { font-size: 12px; }
+.db-msg-head { gap: 8px; }
+.db-msg-head .mono { font-size: 10.5px; }
+.db-msg-content { font-size: 12px; white-space: pre-wrap; }
+.db-vote-action { margin-left: 8px; }
+.db-vote .mono { font-size: 11px; }
+
+/* SSE 实况事件行 */
+.ev-row { margin-bottom: 3px; }
+.ev-type { color: var(--fxcore-accent); }
+.ev-data { color: var(--fxcore-text-dim); }
