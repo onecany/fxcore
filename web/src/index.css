@@ -32,6 +32,10 @@
   --fxcore-glow-up: 0 0 16px rgba(52, 211, 153, 0.12);
   --fxcore-glow-down: 0 0 16px rgba(251, 113, 133, 0.12);
 
+  /* 毛玻璃卡片底（渐变，浅色模式在 [data-theme='light'] 覆盖） */
+  --fxcore-glass: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  --fxcore-glass-topnav: linear-gradient(160deg, rgba(16, 24, 42, 0.88), rgba(7, 11, 20, 0.92));
+
   /* 字体 */
   --fxcore-font-ui: 'SF Pro Text', -apple-system, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   --fxcore-font-mono: 'SF Mono', ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo, monospace;
@@ -67,6 +71,71 @@
   --r-sm: var(--fxcore-r-sm);
   --r-md: var(--fxcore-r-md);
   --r-lg: var(--fxcore-r-lg);
+}
+
+/* ===== 浅色模式（暖色系：白底 + 暖橙主强调） =====
+   深色默认，浅色靠 html[data-theme='light'] 覆盖令牌；本块在 :root 之后，同特异性后者胜。 */
+html[data-theme='light'] {
+  /* 基底（暖米白，宠物美容暖调；非纯白） */
+  --fxcore-bg: #fdf8f3;
+  --fxcore-bg-deep: #f7efe7;
+  --fxcore-bg-grid: rgba(120, 90, 60, 0.06);
+
+  /* 面板（白玻璃 + 暖米白渐变） */
+  --fxcore-panel: rgba(255, 255, 255, 0.85);
+  --fxcore-panel-deep: rgba(255, 255, 255, 0.95);
+  --fxcore-panel-border: rgba(120, 90, 60, 0.14);
+  --fxcore-panel-border-strong: rgba(120, 90, 60, 0.28);
+
+  /* 文字（深墨） */
+  --fxcore-text: #2d3436;
+  --fxcore-text-dim: #57636b;
+  --fxcore-text-faint: #8a979e;
+
+  /* 语义色（白底加深保证可读；涨跌语义不变） */
+  --fxcore-up: #059669;
+  --fxcore-down: #e11d48;
+  --fxcore-warn: #d97706;
+  --fxcore-gold: #ff8c42;
+  --fxcore-accent: #f97316;
+  --fxcore-accent-2: #ff6b9d;
+  --fxcore-danger: #e11d48;
+
+  /* 发光（橙调减弱） */
+  --fxcore-glow-accent: 0 0 24px rgba(249, 115, 22, 0.14);
+  --fxcore-glow-accent-strong: 0 0 32px rgba(249, 115, 22, 0.22);
+  --fxcore-glow-up: 0 0 16px rgba(5, 150, 105, 0.14);
+  --fxcore-glow-down: 0 0 16px rgba(225, 29, 72, 0.14);
+
+  /* 毛玻璃卡片底（白 → 暖米白） */
+  --fxcore-glass: linear-gradient(160deg, rgba(255, 255, 255, 0.85), rgba(255, 243, 235, 0.95));
+  --fxcore-glass-topnav: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(255, 243, 235, 0.98));
+}
+
+/* 浅色背景：暖调柔和渐变，装饰色收敛 */
+html[data-theme='light'] body::before {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(255, 140, 66, 0.08), transparent 60%),
+    var(--fxcore-bg);
+}
+html[data-theme='light'] ::selection { background: rgba(249, 115, 22, 0.2); }
+html[data-theme='light'] ::-webkit-scrollbar-thumb { background: rgba(120, 90, 60, 0.22); }
+html[data-theme='light'] ::-webkit-scrollbar-thumb:hover { background: rgba(120, 90, 60, 0.36); }
+
+/* 浅色按钮：主按钮橙渐变实底 + 白字；原金色 22% 渐变 + 淡蓝白字在白底不可读 */
+html[data-theme='light'] .btn.primary {
+  background: linear-gradient(135deg, #ff8c42, #f97316);
+  border-color: rgba(249, 115, 22, 0.55);
+  color: #ffffff;
+}
+html[data-theme='light'] .btn.primary:disabled {
+  background: rgba(249, 115, 22, 0.35);
+  border-color: rgba(249, 115, 22, 0.3);
+  color: rgba(255, 255, 255, 0.85);
+}
+html[data-theme='light'] .btn.danger {
+  background: rgba(225, 29, 72, 0.07);
+  border-color: rgba(225, 29, 72, 0.4);
 }
 
 * { box-sizing: border-box; }
@@ -135,7 +204,7 @@ body::after {
   gap: 10px 22px;
   padding: 10px 18px;
   margin-bottom: 16px;
-  background: linear-gradient(160deg, rgba(16, 24, 42, 0.88), rgba(7, 11, 20, 0.92));
+  background: var(--fxcore-glass-topnav);
   border: 1px solid var(--fxcore-panel-border);
   border-top: none;
   border-radius: 0 0 var(--fxcore-r-md) var(--fxcore-r-md);
@@ -235,6 +304,13 @@ body::after {
   background: var(--fxcore-up);
   box-shadow: 0 0 8px var(--fxcore-up);
   animation: led-pulse 2s ease-in-out infinite;
+}
+/* 主题切换按钮（导航栏图标） */
+.theme-toggle {
+  min-width: 34px;
+  padding: 6px 9px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 /* 内容主列 */
@@ -445,7 +521,7 @@ body::after {
 .stat-card {
   position: relative;
   padding: 14px 16px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -658,7 +734,7 @@ body::after {
 .form-section {
   position: relative;
   padding: 14px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -899,7 +975,7 @@ body::after {
 
 .studio-sidebar {
   border-right: 1px solid var(--fxcore-panel-border);
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   padding: 12px;
@@ -959,7 +1035,7 @@ body::after {
   position: relative;
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   padding: 14px;
@@ -1167,7 +1243,7 @@ button.chip:hover {
 .fleet-summary-cell {
   position: relative;
   padding: 12px 14px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -1207,7 +1283,7 @@ button.chip:hover {
 .trader-card {
   position: relative;
   padding: 15px 16px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -1295,7 +1371,7 @@ button.chip:hover {
 /* 资源卡（AI Models / Exchanges） */
 .resource-card {
   padding: 10px 12px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-sm);
   backdrop-filter: blur(12px);
@@ -1465,7 +1541,7 @@ button.chip:hover {
 .tm-card {
   position: relative;
   padding: 12px 14px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -1842,7 +1918,7 @@ button.chip:hover {
 /* 毛玻璃卡片（通用） */
 .glass-card {
   position: relative;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-lg);
   backdrop-filter: blur(16px);
@@ -2845,7 +2921,7 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -2954,7 +3030,7 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   flex-direction: column;
   gap: 8px;
   padding: 13px 15px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
@@ -3050,7 +3126,7 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   flex-direction: column;
   gap: 10px;
   padding: 13px 15px;
-  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
+  background: var(--fxcore-glass);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
   backdrop-filter: blur(14px);
