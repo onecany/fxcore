@@ -1095,31 +1095,45 @@ button.chip:hover {
 .term-status b.warn { color: var(--fxcore-warn); }
 .term-status b.off { color: var(--fxcore-text-faint); }
 
-/* 顶部快捷按钮组 */
+/* 顶部快捷按钮组（毛玻璃操作条） */
 .fleet-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  padding: 12px 16px;
   margin-bottom: 14px;
 }
+.fleet-actions-spacer { flex: 1; }
 
-/* 两栏：左资源侧栏 + 右主区 */
-.fleet-grid {
+/* 页头（标题 + 终端状态） */
+.fleet-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+/* 两栏主次：编队网格（全宽 2 列）| 右栏 sticky（资源 + 详情） */
+.fleet-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 14px;
   align-items: start;
 }
-/* 三栏：资源侧栏 | 编队网格 | 详情速览 */
-.fleet-grid-3 { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(240px, 300px); }
-@media (max-width: 1200px) {
-  .fleet-grid-3 { grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); }
-  .fleet-grid-3 .fleet-inspect { grid-column: 1 / -1; }
+.fleet-aside {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
 }
-@media (max-width: 900px) {
-  .fleet-grid { grid-template-columns: 1fr; }
-  .fleet-grid-3 { grid-template-columns: 1fr; }
-  .fleet-grid-3 .fleet-inspect { grid-column: auto; }
+@media (max-width: 1100px) {
+  .fleet-layout { grid-template-columns: minmax(0, 1fr); }
+  .fleet-aside { position: static; }
 }
 .fleet-sidebar {
   display: flex;
@@ -1135,10 +1149,13 @@ button.chip:hover {
   margin-bottom: 14px;
 }
 .fleet-summary-cell {
-  padding: 10px 14px;
-  background: var(--fxcore-panel);
+  position: relative;
+  padding: 12px 14px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   text-align: center;
 }
 .fleet-summary-label {
@@ -1162,27 +1179,46 @@ button.chip:hover {
   .fleet-summary { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* 编队网格卡片（中栏） */
-.fleet-cards { display: flex; flex-direction: column; gap: 10px; }
+/* 编队网格卡片（主栏，2 列自适应） */
+.fleet-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1100px) {
+  .fleet-cards { grid-template-columns: minmax(0, 1fr); }
+}
 .trader-card {
-  padding: 12px 14px;
-  background: var(--fxcore-panel-deep);
+  position: relative;
+  padding: 15px 16px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
-  border-radius: var(--fxcore-r-sm);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
+.trader-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.3), transparent);
+}
 .trader-card:hover { border-color: var(--fxcore-panel-border-strong); box-shadow: var(--fxcore-glow-accent); }
 .trader-card.selected {
-  border-color: var(--fxcore-panel-border-strong);
-  background: rgba(240, 185, 11, 0.06);
-  box-shadow: var(--fxcore-glow-accent);
+  border-color: rgba(240, 185, 11, 0.55);
+  background: linear-gradient(160deg, rgba(240, 185, 11, 0.08), rgba(10, 16, 30, 0.82));
+  box-shadow: 0 0 22px rgba(240, 185, 11, 0.14);
 }
 .trader-card-head { display: flex; align-items: center; gap: 10px; }
 .trader-card-head .trader-info { display: flex; flex-direction: column; min-width: 0; }
 .trader-card-head .trader-name {
   font-family: var(--fxcore-font-mono);
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--fxcore-text);
   letter-spacing: 0.03em;
   overflow: hidden;
@@ -1202,13 +1238,13 @@ button.chip:hover {
 }
 .trader-card-metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin: 10px 0;
+  margin: 11px 0;
 }
 .metric-cell {
-  padding: 6px 10px;
-  background: var(--fxcore-panel);
+  padding: 7px 10px;
+  background: var(--fxcore-panel-deep);
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-sm);
 }
@@ -1221,24 +1257,33 @@ button.chip:hover {
 }
 .metric-value {
   font-family: var(--fxcore-font-mono);
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--fxcore-text);
 }
 .metric-value.up { color: var(--fxcore-up); }
 .metric-value.down { color: var(--fxcore-down); }
+/* 动作按钮分组：次操作（View/Edit）靠左，主操作（Start/Pause/Stop）靠右 */
 .trader-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
+.tc-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.tc-main { justify-content: flex-end; }
+/* 小按钮（卡片内紧凑操作） */
+.btn-sm { padding: 4px 10px; font-size: 11.5px; }
 
 /* 资源卡（AI Models / Exchanges） */
 .resource-card {
-  padding: 9px 12px;
-  background: var(--fxcore-panel-deep);
+  padding: 10px 12px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
   border-radius: var(--fxcore-r-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   transition: border-color 0.15s ease;
 }
 .resource-card:hover { border-color: var(--fxcore-panel-border-strong); }
@@ -1248,6 +1293,15 @@ button.chip:hover {
   justify-content: space-between;
   gap: 8px;
 }
+.resource-stack { display: flex; flex-direction: column; gap: 8px; }
+.resource-cta { width: 100%; margin-top: 10px; }
+.resource-name-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.resource-status { font-size: 10px; padding: 1px 8px; flex-shrink: 0; }
+/* Inspector 细节 */
+.insp-head { gap: 8px; margin-bottom: 10px; }
+.insp-head .mono { font-size: 11px; }
+.insp-metrics { margin-bottom: 10px; }
+.insp-cta { width: 100%; margin-top: 12px; }
 .resource-card .resource-name {
   font-family: var(--fxcore-font-mono);
   font-size: 12.5px;

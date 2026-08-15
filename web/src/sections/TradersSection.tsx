@@ -53,8 +53,8 @@ export default function TradersSection({ onNavigate }: { onNavigate: (tab: 'mode
 
   return (
     <section>
-      {/* 页头：标题 + ACTIVE_NODES + SYSTEM_READY 终端状态 + 编队概览条 */}
-      <div className="row wrap" style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
+      {/* 页头：标题 + ACTIVE_NODES + SYSTEM_READY 终端状态 */}
+      <div className="fleet-head">
         <PageHead
           title={`交易员编队 ${activeCount} ACTIVE_NODES`}
           lead={<>每个交易员独立引擎 · 实时轮询</>}
@@ -77,9 +77,10 @@ export default function TradersSection({ onNavigate }: { onNavigate: (tab: 'mode
       {isLoading && <div className="muted mono">· 加载中…</div>}
 
       {/* 顶部快捷按钮组（MODELS_CONFIG / EXCHANGE_KEYS / Create Trader） */}
-      <div className="fleet-actions">
+      <div className="fleet-actions glass-card">
         <button className="btn ghost" onClick={() => onNavigate('models')}>⬡ MODELS_CONFIG</button>
         <button className="btn ghost" onClick={() => onNavigate('exchanges')}>◐ EXCHANGE_KEYS</button>
+        <span className="fleet-actions-spacer" />
         <button className="btn primary" onClick={openCreate}>＋ Create Trader</button>
       </div>
 
@@ -94,9 +95,8 @@ export default function TradersSection({ onNavigate }: { onNavigate: (tab: 'mode
         />
       )}
 
-      {/* 三栏：资源侧栏 | 编队网格 | 详情速览 */}
-      <div className="fleet-grid fleet-grid-3">
-        <ResourceSidebar models={models} exchanges={exchanges} onNavigate={onNavigate} />
+      {/* 两栏主次：编队网格（全宽 2 列）| 右栏 sticky（资源侧栏 + 详情速览） */}
+      <div className="fleet-layout">
         <TraderGrid
           items={items}
           selectedId={selectedId}
@@ -107,14 +107,15 @@ export default function TradersSection({ onNavigate }: { onNavigate: (tab: 'mode
           onEdit={openEdit}
           onView={(t) => onNavigate('dashboard', { traderId: t.id })}
         />
-        <div className="fleet-inspect">
+        <aside className="fleet-aside">
+          <ResourceSidebar models={models} exchanges={exchanges} onNavigate={onNavigate} />
           <InspectorPanel
             trader={selected}
             modelNameOf={modelNameOf}
             accountOf={accountOf}
             onOpenTerminal={(t) => onNavigate('dashboard', { traderId: t.id })}
           />
-        </div>
+        </aside>
       </div>
     </section>
   );
