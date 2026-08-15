@@ -47,6 +47,7 @@ import (
 	"fxcore/internal/backtest"
 	"fxcore/internal/debate"
 	"fxcore/internal/llm"
+	"fxcore/internal/model"
 	"fxcore/internal/pkg/cache"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
@@ -153,6 +154,21 @@ func main() {
 	// 交易引擎（§14.1：每交易员独立 goroutine + OrderSync）
 	credsResolver := service.NewCredentialsResolver(st, km)
 	traderEngine := engine.NewEngine(st, credsResolver, models, ai, klinesChain)
+
+	// 重启恢复：runner 是纯内存态，重启后存量 running/paused 交易员的引擎
+	// goroutine 全部丢失，但 DB 状态保留——不恢复则 UI 显示 running 而引擎
+	// 永不执行周期（2026-08 实锤：equity 快照在重启后完全停更）。
+	// paused 同样恢复：loop 启动后读状态即等待，resume 语义才完整。
+	for _, t := range st.ListTraders("") {
+		if t.Status != model.StatusRunning && t.Status != model.StatusPaused {
+			continue
+		}
+		if err := traderEngine.Start(t.ID); err != nil {
+			log.Printf("[main] ⚠️  resume trader %s: %v", t.ID, err)
+			continue
+		}
+		log.Printf("[main] resumed trader %s (%s, status=%s)", t.ID, t.Name, t.Status)
+	}
 
 	// 服务装配
 	r := v1.NewRouter(v1.Deps{
