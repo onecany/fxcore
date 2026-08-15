@@ -2131,16 +2131,96 @@ button.chip:hover {
   color: var(--fxcore-warn);
 }
 
-/* 登录页（独立路由 /login）：表单卡居中 */
+/* 登录页（独立路由 /login）：两栏——左品牌/安全展示 + 右表单卡 */
 .login-page {
   max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px 56px;
   min-height: 100vh;
 }
+.auth-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 48px;
+  align-items: center;
+  padding: 5vh 0 4vh;
+}
+/* 左栏：品牌与安全展示 */
+.auth-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.auth-title {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.02em;
+  color: var(--fxcore-text);
+  margin: 0;
+}
+.auth-lead {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--fxcore-text-dim);
+  max-width: 520px;
+  margin: 0;
+}
+.auth-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 6px;
+}
+.auth-trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--fxcore-text-dim);
+}
+.auth-trust-item::before {
+  content: '✓';
+  color: var(--fxcore-up);
+  font-weight: 700;
+}
+/* 右栏：表单卡（金色顶光线） */
 .login-page .auth-card {
-  max-width: 420px;
-  margin: 7vh auto 0;
+  position: relative;
+  padding: 24px 26px;
+}
+.login-page .auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.45), transparent);
+}
+.auth-label {
+  font-size: 12.5px;
+  color: var(--fxcore-text-dim);
+  letter-spacing: 0.05em;
+}
+.auth-form .field input {
+  min-height: 44px;
+  padding: 10px 13px;
+  font-size: 14px;
+}
+.auth-submit {
+  width: 100%;
+  padding: 11px;
+  margin-top: 4px;
+  font-size: 14px;
+}
+@media (max-width: 1100px) {
+  .auth-hero { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 3vh 0; }
+  .auth-showcase { display: none; }
+}
+@media (max-width: 640px) {
+  .login-page { padding: 0 14px 40px; }
 }
 
 /* 落地页断点 */
