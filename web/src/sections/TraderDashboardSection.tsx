@@ -1,16 +1,17 @@
-// 交易员详情仪表盘（指挥中心信息架构）：
-// 顶栏：交易员下拉 + 状态 + tm 摘要行 + tm 指标网格 + Risk Radar
-// → 非对称主次两列：主列（Current Positions + Execution Log）/ 辅助列（权益曲线 + 配置摘要）
-// → Position History（全宽统计网格 + LONG/SHORT 分拆 + Symbol Performance + 明细表）
-// 数据层：SWR 缓存 + 5s 轮询（useTraderTerminal），支持 URL ?trader=<id> 直达。
+// 交易员详情仪表盘（激进版布局）：
+// ① 交易员选择条（毛玻璃横条）→ ② 交易所余额 → ③ KPI 6 卡 → ④ 终端状态行 → ⑤ K 线行情全宽
+// → ⑥ 非对称两列（主列持仓+执行日志 / 辅助列权益+风险+配置）→ ⑦ Position History 全宽
+// 数据层：SWR 缓存 + 5s 轮询（useTraderTerminal），K 线 10s 轮询，支持 URL ?trader=<id> 直达。
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
-import { PageHead, Panel, Badge } from '../components/ui';
+import { PageHead, Panel } from '../components/ui';
 import { fmtUsd, fmtPct, fmtDur } from '../utils/format';
 import { useTraderTerminal, realizedOf } from './dashboard/useTraderTerminal';
-import { UP, DOWN, TmCard, RiskCard, PhStat, CfgRow, EquityCurve } from './dashboard/primitives';
+import { UP, DOWN, TmCard, PhStat, CfgRow, EquityCurve } from './dashboard/primitives';
 import { DecisionCard, fmtClock, pnlColor, fmtSharpe } from './dashboard/exec-log';
 import { ExchangeBalances } from './dashboard/exchange-balances';
+import { TraderSelect } from './dashboard/TraderSelect';
+import { KlinePanel } from './dashboard/KlinePanel';
 import * as modelApi from '../api/v1/modules/models';
 import * as strategyApi from '../api/v1/modules/strategies';
 import type { AIModel, StrategyItem } from '../api/v1/types/contract';
@@ -60,6 +61,14 @@ export default function TraderDashboardSection() {
     return Number.isInteger(min) ? `${min}m` : `${min.toFixed(1)}m`;
   }, [trader]);
 
+  const statusLabel = trader?.status === 'running' ? 'ONLINE' : (trader?.status ?? 'OFFLINE').toUpperCase();
+  const statusTone = trader?.status === 'running' ? 'ok' : trader?.status === 'paused' ? 'warn' : '';
+
+  // 风险状态（真实数据聚合，替代硬编码演示值）
+  const marginState = equity?.marginUsedPct == null ? '—'
+    : equity.marginUsedPct < 0.3 ? 'Ample' : equity.marginUsedPct < 0.7 ? 'Moderate' : 'Tight';
+  const ddState = maxDd < 0.05 ? 'Calm' : maxDd < 0.15 ? 'Watch' : 'Alert';
+
   return (
     <section>
       <PageHead
@@ -68,61 +77,41 @@ export default function TraderDashboardSection() {
       />
       {error && <div className="alert error">{error}</div>}
 
-      {/* 交易所余额横条（全局账户级，不依赖具体交易员） */}
+      {/* ① 交易员选择条：选择器 + 名称/交易所 + 状态 + cycle */}
+      <div className="glass-card dash-topbar">
+        <TraderSelect traders={traders} traderId={traderId} onSelect={onSelectTrader} />
+        <div className="dash-tb-meta">
+          <span className="dash-tb-name">{trader?.name ?? '-'}</span>
+          <span className="dash-tb-ex">{trader?.exchange ?? '-'}</span>
+          <span className={`dash-tb-status ${statusTone}`}>{statusLabel}</span>
+          <span className="dash-tb-cycle">
+            cycle <b>{cycleText}</b>
+            {latest?.cycleNumber != null && <em>· 第 {latest.cycleNumber} 轮</em>}
+          </span>
+          <span className="dash-tb-id mono">{trader ? `ID ${trader.id.slice(0, 8)}…` : ''}</span>
+        </div>
+      </div>
+
+      {/* ② 交易所余额横条（全局账户级，不依赖具体交易员） */}
       <ExchangeBalances />
 
-      {/* 顶栏：orchestration select + 名称 ID + 状态 */}
-      <div className="row wrap" style={{ gap: 12, marginBottom: 14 }}>
-        <label className="dim" style={{ fontSize: 12 }}>orchestration</label>
-        <select
-          value={traderId}
-          onChange={(e) => onSelectTrader(e.target.value)}
-          className="mono"
-          style={{ background: 'var(--fxcore-panel)', color: 'var(--fxcore-text)', border: '1px solid var(--fxcore-panel-border)', padding: '4px 8px', fontSize: 12 }}
-        >
-          {traders.map((t) => (
-            <option key={t.id} value={t.id}>{t.name} · {t.exchange}</option>
-          ))}
-        </select>
-        <Badge state={trader?.status ?? 'idle'} />
-        {trader && (
-          <span className="mono dim" style={{ fontSize: 12 }}>
-            ID: {trader.id.slice(0, 8)}...
-          </span>
-        )}
-        <span className="mono dim" style={{ fontSize: 12 }}>
-          cycle <b style={{ color: 'var(--fxcore-accent)' }}>{cycleText}</b>
-          {latest?.cycleNumber != null && <span style={{ marginLeft: 8 }}>· 第 {latest.cycleNumber} 轮</span>}
-        </span>
-      </div>
-
-      {/* tm 终端摘要行（name · model · strategy · lev · scan · universe · positions · next cycle） */}
-      <div className="tm-mono" style={{ marginBottom: 12 }}>
-        <span className="tm-k">{trader?.name ?? '-'}</span>
-        <span className="tm-dim">model</span><span className="tm-v">{modelNameOf(trader?.modelConfig?.modelId)}</span>
-        <span className="tm-dim">strategy</span><span className="tm-v">{strategyNameOf(trader?.strategyId)}</span>
-        <span className="tm-dim">lev</span><span className="tm-v">—× / —×</span>
-        <span className="tm-dim">positions</span><span className="tm-v">{positions.length}</span>
-        <span className="tm-dim">cycle</span><span className="tm-v">{cycleText}</span>
-        <span className="tm-dim">status</span>
-        <span className={`tm-v ${trader?.status === 'running' ? 'ok' : trader?.status === 'paused' ? 'warn' : ''}`}>
-          {trader?.status === 'running' ? 'ONLINE' : (trader?.status ?? 'OFFLINE').toUpperCase()}
-        </span>
-        <span className="tm-dim">eq</span><span className="tm-v">{fmtUsd(equity?.equity)}</span>
-        <span className="tm-dim">pnl</span><span className="tm-v" style={{ color: pnlColor(pnl) }}>{fmtUsd(pnl, true)}</span>
-      </div>
-
-      {/* tm 指标网格：Equity / Total P&L(含未实现) / Realized / Profit Factor / Max DD */}
-      <div className="tm-grid-5" style={{ marginBottom: 12 }}>
+      {/* ③ KPI 主指标行（6 卡，毛玻璃） */}
+      <div className="dash-kpi">
         <TmCard label="EQUITY" value={fmtUsd(equity?.equity)} sub={`${fmtPct(equityChgPct)} ${equityChgPct >= 0 ? '▲' : '▼'}`} color={equityChgPct >= 0 ? UP : DOWN} />
         <TmCard label="TOTAL P&L · INCL. UNREALIZED" value={fmtUsd(pnl + unrealizedPnl, true)} sub={fmtPct(equity?.equity ? (pnl + unrealizedPnl) / equity.equity : 0)} color={pnlColor(pnl + unrealizedPnl)} />
         <TmCard label="TOTAL P&L · CLOSED" value={fmtUsd(stats.totalPnl, true)} color={pnlColor(stats.totalPnl)} />
+        <TmCard label="WIN RATE" value={fmtPct(stats.winRate)} sub={`Win ${wins.length} / Loss ${losses.length}`} color={stats.winRate >= 0.5 ? UP : DOWN} />
         <TmCard label="PROFIT FACTOR" value={Number.isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '-'} sub="总盈/总亏" />
         <TmCard label="MAX DRAWDOWN" value={fmtPct(maxDd)} color={maxDd > 0.1 ? DOWN : undefined} sub="自峰回撤" />
       </div>
 
-      {/* tm 第二行指标：trades / win / loss / net / sharpe / avg win-loss */}
-      <div className="tm-mono tm-line2" style={{ marginBottom: 14 }}>
+      {/* ④ 终端状态行：模型/策略/持仓/权益/盈亏/交易统计（mono 终端风） */}
+      <div className="glass-card dash-status tm-mono">
+        <span className="tm-dim">model</span><span className="tm-v">{modelNameOf(trader?.modelConfig?.modelId)}</span>
+        <span className="tm-dim">strategy</span><span className="tm-v">{strategyNameOf(trader?.strategyId)}</span>
+        <span className="tm-dim">positions</span><span className="tm-v">{positions.length}</span>
+        <span className="tm-dim">eq</span><span className="tm-v">{fmtUsd(equity?.equity)}</span>
+        <span className="tm-dim">pnl</span><span className="tm-v" style={{ color: pnlColor(pnl) }}>{fmtUsd(pnl, true)}</span>
         <span className="tm-dim">trades</span><span className="tm-v">{stats.total}</span>
         <span className="tm-dim">win</span><span className="tm-v ok">{wins.length} ({fmtPct(stats.winRate)})</span>
         <span className="tm-dim">loss</span><span className="tm-v down">{losses.length}</span>
@@ -132,18 +121,10 @@ export default function TraderDashboardSection() {
         <span className="tm-dim">avg win/loss</span><span className="tm-v">{fmtUsd(stats.avgWin, true)} / {fmtUsd(stats.avgLoss, true)}</span>
       </div>
 
-      {/* Risk Radar：风险雷达（从 equity/positions/history 聚合） */}
-      <div className="tm-grid-7" style={{ marginBottom: 14 }}>
-        <RiskCard label="NET EXPOSURE" value="Flat" sub={`long ${fmtUsd(0)} / short ${fmtUsd(0)}`} />
-        <RiskCard label="LEVERAGE" value="—" sub={`${fmtPct(equity?.marginUsedPct)} avg / — peak`} />
-        <RiskCard label="MARGIN USED" value={equity?.marginUsedPct != null && equity.marginUsedPct < 0.3 ? 'Ample' : equity?.marginUsedPct != null && equity.marginUsedPct < 0.7 ? 'Moderate' : 'Tight'} sub={`${fmtPct(equity?.marginUsedPct)} of equity`} />
-        <RiskCard label="MAX DRAWDOWN" value={maxDd < 0.05 ? 'Calm' : maxDd < 0.15 ? 'Watch' : 'Alert'} sub={`${fmtPct(maxDd)} peak drawdown`} />
-        <RiskCard label="POSITIONS" value={`${positions.length}`} sub={`${positions.length} held / cap`} />
-        <RiskCard label="UNREALIZED PNL" value={fmtUsd(unrealizedPnl, true)} color={pnlColor(unrealizedPnl)} />
-        <RiskCard label="AVAILABLE" value={equity?.balance != null ? fmtUsd(equity.balance) : '0.00'} sub={equity?.balance != null ? `${fmtPct(equity.marginUsedPct)} 占用` : '暂无权益快照（未运行）'} />
-      </div>
+      {/* ⑤ K 线行情面板（全宽，真实数据源链） */}
+      <KlinePanel />
 
-      {/* 非对称主次：主列（持仓+执行日志）宽，辅助列（权益+配置）窄 */}
+      {/* ⑥ 非对称主次：主列（持仓+执行日志）宽，辅助列（权益+风险+配置）窄 */}
       <div className="td-grid td-grid-main">
         {/* 主列：Current Positions + Execution Log */}
         <div className="td-col-main">
@@ -164,26 +145,55 @@ export default function TraderDashboardSection() {
                   ))}
                 </tbody>
               </table></div>
-            ) : <div className="muted mono" style={{ fontSize: 12 }}>📊 No Positions · 无活动持仓</div>}
+            ) : <div className="muted mono empty-hint">📊 No Positions · 无活动持仓</div>}
           </Panel>
           <Panel title={`Execution Log (${decisions.length} cyc)`}>
             {decisions.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="dash-stack">
                 {decisions.map((d) => <DecisionCard key={d.id} d={d} />)}
               </div>
-            ) : <div className="muted mono" style={{ fontSize: 12 }}>// 暂无决策记录</div>}
+            ) : <div className="muted mono empty-hint">// 暂无决策记录</div>}
           </Panel>
         </div>
 
-        {/* 辅助列：权益曲线 + 配置摘要 + 订单 */}
+        {/* 辅助列：权益曲线 + 风险状态 + 配置摘要 */}
         <div className="td-col-side">
           <Panel title="权益曲线">
-            <EquityCurve points={equities} />
-            <div className="row wrap" style={{ marginTop: 8, fontSize: 11, color: 'var(--fxcore-text-faint)' }}>
+            <EquityCurve points={equities} height={160} />
+            <div className="dash-eq-meta">
               <span>Initial {fmtUsd(equities[0]?.equity)}</span>
               <span>· Current {fmtUsd(equity?.equity)}</span>
               <span>· Cycles {equities.length}</span>
               <span>· Margin {fmtPct(equity?.marginUsedPct)}</span>
+            </div>
+          </Panel>
+          <Panel title="风险状态">
+            <div className="dash-risk">
+              <div className="dash-risk-item">
+                <span className="dash-risk-label">MARGIN USED</span>
+                <span className="dash-risk-val">{marginState}</span>
+                <span className="dash-risk-sub">{fmtPct(equity?.marginUsedPct)} of equity</span>
+              </div>
+              <div className="dash-risk-item">
+                <span className="dash-risk-label">MAX DRAWDOWN</span>
+                <span className="dash-risk-val" style={{ color: ddState === 'Alert' ? DOWN : ddState === 'Watch' ? 'var(--fxcore-warn)' : undefined }}>{ddState}</span>
+                <span className="dash-risk-sub">{fmtPct(maxDd)} peak drawdown</span>
+              </div>
+              <div className="dash-risk-item">
+                <span className="dash-risk-label">POSITIONS</span>
+                <span className="dash-risk-val">{positions.length}</span>
+                <span className="dash-risk-sub">{positions.length} held</span>
+              </div>
+              <div className="dash-risk-item">
+                <span className="dash-risk-label">UNREALIZED PNL</span>
+                <span className="dash-risk-val" style={{ color: pnlColor(unrealizedPnl) }}>{fmtUsd(unrealizedPnl, true)}</span>
+                <span className="dash-risk-sub">open positions</span>
+              </div>
+              <div className="dash-risk-item">
+                <span className="dash-risk-label">AVAILABLE</span>
+                <span className="dash-risk-val">{equity?.balance != null ? fmtUsd(equity.balance) : '0.00'}</span>
+                <span className="dash-risk-sub">{equity?.balance != null ? `${fmtPct(equity.marginUsedPct)} 占用` : '暂无权益快照（未运行）'}</span>
+              </div>
             </div>
           </Panel>
           <Panel title="配置摘要">
@@ -212,12 +222,12 @@ export default function TraderDashboardSection() {
                   ))}
                 </tbody>
               </table></div>
-            ) : <div className="muted mono" style={{ fontSize: 12 }}>// NO ORDERS</div>}
+            ) : <div className="muted mono empty-hint">// NO ORDERS</div>}
           </Panel>
         </div>
       </div>
 
-      {/* Position History 统计（全宽） */}
+      {/* ⑦ Position History 统计（全宽） */}
       <div className="td-grid td-grid-1">
         <Panel title={`Position History (${stats.total})`}>
           {stats.total > 0 ? (
@@ -230,13 +240,13 @@ export default function TraderDashboardSection() {
                 <PhStat label="AVG LOSS" value={fmtUsd(stats.avgLoss, true)} color={DOWN} />
                 <PhStat label="SHARPE" value={fmtSharpe(history.map((p) => realizedOf(p) ?? 0))} hint="风险调整收益" />
               </div>
-              <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
+              <div className="dash-chips">
                 <span className="chip">{`LONG ${stats.long.count} · WR ${fmtPct(stats.long.winRate)} · ${fmtUsd(stats.long.pnl, true)}`}</span>
                 <span className="chip">{`SHORT ${stats.short.count} · WR ${fmtPct(stats.short.winRate)} · ${fmtUsd(stats.short.pnl, true)}`}</span>
               </div>
               {stats.bySymbol.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div className="mono dim" style={{ fontSize: 10.5, letterSpacing: '0.1em', marginBottom: 4 }}>SYMBOL PERFORMANCE</div>
+                <div className="dash-block">
+                  <div className="mono dim dash-subhead">SYMBOL PERFORMANCE</div>
                   <div className="table-wrap"><table className="data-table">
                     <thead><tr><th>币种</th><th>笔数</th><th>胜率</th><th>P&L</th></tr></thead>
                     <tbody>
@@ -252,8 +262,8 @@ export default function TraderDashboardSection() {
                   </table></div>
                 </div>
               )}
-              <div style={{ marginTop: 10 }}>
-                <div className="mono dim" style={{ fontSize: 10.5, letterSpacing: '0.1em', marginBottom: 4 }}>CLOSED TRADES</div>
+              <div className="dash-block">
+                <div className="mono dim dash-subhead">CLOSED TRADES</div>
                 <div className="table-wrap"><table className="data-table">
                   <thead><tr><th>币种</th><th>方向</th><th>盈亏</th><th>Fee</th><th>时长</th><th>平仓</th></tr></thead>
                   <tbody>
@@ -271,7 +281,7 @@ export default function TraderDashboardSection() {
                 </table></div>
               </div>
             </>
-          ) : <div className="muted mono" style={{ fontSize: 12 }}>// NO CLOSED POSITIONS</div>}
+          ) : <div className="muted mono empty-hint">// NO CLOSED POSITIONS</div>}
         </Panel>
       </div>
     </section>

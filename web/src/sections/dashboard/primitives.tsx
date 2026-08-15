@@ -16,17 +16,6 @@ export function TmCard({ label, value, sub, color }: { label: string; value: str
   );
 }
 
-/** Risk Radar 卡（语义标签：Ample/Calm/Tight 等状态词 + 数值副行） */
-export function RiskCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-  return (
-    <div className="risk-card">
-      <div className="tm-card-label">{label}</div>
-      <div className="tm-card-value" style={{ fontSize: 15, color: color ?? 'var(--fxcore-text)' }}>{value}</div>
-      {sub && <div className="tm-card-sub">{sub}</div>}
-    </div>
-  );
-}
-
 export function PhStat({ label, value, color, hint }: { label: string; value: string; color?: string; hint?: string }) {
   return (
     <div className="ph-stat">
