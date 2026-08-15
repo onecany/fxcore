@@ -13,8 +13,10 @@ import BacktestPage from './pages/BacktestPage';
 import DebatePage from './pages/DebatePage';
 import TradersSection from './sections/TradersSection';
 import { LangSwitch } from './components/LangSwitch';
+import { ThemeToggle } from './components/ThemeToggle';
 import { Footer } from './components/Footer';
 import { useT } from './stores/i18nStore';
+import { useTheme } from './stores/themeStore';
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -72,6 +74,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <span>TIME</span>
             <span>{clock}</span>
           </div>
+          <ThemeToggle />
           <LangSwitch />
           <button className="btn ghost" onClick={() => void logout()}>{t.common.logout}</button>
         </div>
@@ -128,6 +131,9 @@ function AuthGate() {
 }
 
 export default function App() {
+  const initTheme = useTheme((s) => s.init);
+  // 应用持久化主题（根组件挂载即生效，覆盖所有页面含未登录态）
+  useEffect(() => { initTheme(); }, [initTheme]);
   return (
     <BrowserRouter>
       <AuthGate />
