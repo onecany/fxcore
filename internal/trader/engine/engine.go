@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -262,17 +263,44 @@ func (e *Engine) decide(ctx context.Context, t *model.Trader, adapter exchange.A
 	if e.klines != nil && len(symbols) > 0 {
 		// 按 config 的周期/数量拉取真实 K 线，计算指标后作为 user 上下文（2026-08 修复：
 		// 原实现只取 20 根最后一根收盘价摘要，EMA/MACD/RSI 开关与周期从未生效）
-		tf := cfg.Indicators.Klines.PrimaryTimeframe
-		if tf == "" {
-			tf = "15m"
+		kc := cfg.Indicators.Klines
+		primary := kc.PrimaryTimeframe
+		if primary == "" {
+			primary = "15m"
 		}
-		count := cfg.Indicators.Klines.PrimaryCount
+		count := kc.PrimaryCount
 		if count <= 0 {
 			count = 200
 		}
-		ks, _ := e.klines.Klines(ctx, symbols[0], tf, count)
-		if len(ks) > 0 {
-			userContext = kernel.BuildUserContext(balance, posLines, kernel.BuildKlineContext(ks, cfg))
+		// 时间框架列表：primary + 多时间框架开关启用的 selected_timeframes（去重）
+		tfs := []string{primary}
+		seen := map[string]bool{primary: true}
+		if kc.EnableMultiTimeframe {
+			for _, tf := range kc.SelectedTimeframes {
+				if tf == "" || seen[tf] {
+					continue
+				}
+				seen[tf] = true
+				tfs = append(tfs, tf)
+			}
+		}
+		var market strings.Builder
+		for _, tf := range tfs {
+			ks, err := e.klines.Klines(ctx, symbols[0], tf, count)
+			if err != nil || len(ks) == 0 {
+				// 拉取失败不中断周期，但必须可观测（2026-08：原实现静默吞错，
+				// 导致 USER PROMPT 无 Market data 且日志零痕迹）
+				e.noteTraderError(t.ID, fmt.Sprintf("klines %s %s failed: %v", symbols[0], tf, err))
+				continue
+			}
+			if len(tfs) > 1 {
+				market.WriteString(kernel.BuildKlineContextTF(ks, cfg, tf))
+			} else {
+				market.WriteString(kernel.BuildKlineContext(ks, cfg))
+			}
+		}
+		if market.Len() > 0 {
+			userContext = kernel.BuildUserContext(balance, posLines, market.String())
 		}
 	}
 	if userContext == "" {
