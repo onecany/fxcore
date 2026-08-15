@@ -116,137 +116,122 @@ body::after {
 /* ========== 应用壳 ========== */
 .app-shell { max-width: 1440px; margin: 0 auto; padding: 0 24px 48px; }
 
-/* 登录后主框架：侧边导航 + 内容两列（B+C 方案，桌面端） */
+/* 登录后主框架：顶部导航（侧栏移除，内容全宽） */
 .app-frame {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  gap: 22px;
   max-width: 1440px;
   margin: 0 auto;
   padding: 0 24px 40px;
   min-height: 100vh;
-  align-items: start;
 }
 
-/* 侧边导航（吸顶，玻璃拟态透出背景星云） */
-.app-sidebar {
+/* 顶部导航（吸顶，毛玻璃） */
+.app-topnav {
   position: sticky;
   top: 0;
-  align-self: start;
+  z-index: 40;
   display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  padding: 20px 14px 18px;
-  background: var(--fxcore-panel-deep);
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 10px 18px;
+  margin-bottom: 16px;
+  background: linear-gradient(160deg, rgba(16, 24, 42, 0.88), rgba(7, 11, 20, 0.92));
   border: 1px solid var(--fxcore-panel-border);
-  border-radius: var(--fxcore-r-md);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  gap: 20px;
-  z-index: 20;
+  border-top: none;
+  border-radius: 0 0 var(--fxcore-r-md) var(--fxcore-r-md);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
-.app-sidebar .brand-wrap {
+.app-topnav .brand-wrap {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 0 8px 14px;
-  border-bottom: 1px solid var(--fxcore-panel-border);
+  padding-right: 10px;
+  border-right: 1px solid var(--fxcore-panel-border);
   font-family: var(--fxcore-font-mono);
   letter-spacing: 0.06em;
+  white-space: nowrap;
 }
-.app-sidebar .brand-wrap .logo { color: var(--fxcore-accent); text-shadow: 0 0 18px rgba(240, 185, 11, 0.45); font-size: 19px; }
-.app-sidebar .brand-wrap .sub { color: var(--fxcore-text-faint); font-size: 10.5px; letter-spacing: 0.22em; }
+.app-topnav .brand-wrap .logo { color: var(--fxcore-accent); text-shadow: 0 0 18px rgba(240, 185, 11, 0.45); font-size: 18px; }
+.app-topnav .brand-wrap .sub { color: var(--fxcore-text-faint); font-size: 10px; letter-spacing: 0.2em; }
 .brand-mark {
   border-radius: 6px;
   filter: drop-shadow(0 0 10px rgba(240, 185, 11, 0.35));
   flex-shrink: 0;
 }
 
-/* 侧边导航项（纵向） */
-.app-sidebar .side-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-.side-tab {
-  position: relative;
+/* 顶部导航项（横排，active 金色下划线） */
+.top-nav {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.top-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
   color: var(--fxcore-text-dim);
-  background: transparent;
-  border: 1px solid transparent;
   border-radius: var(--fxcore-r-sm);
   font-family: var(--fxcore-font-ui);
-  font-size: 13.5px;
+  font-size: 13px;
   letter-spacing: 0.04em;
   text-decoration: none;
+  white-space: nowrap;
   transition: all 0.2s ease;
-  overflow: hidden;
 }
-.side-tab .glyph {
-  width: 18px;
-  text-align: center;
+.top-tab .glyph {
   color: var(--fxcore-text-faint);
-  font-size: 14px;
+  font-size: 13px;
   flex-shrink: 0;
   transition: color 0.2s ease;
 }
-.side-tab:hover {
+.top-tab:hover {
   color: var(--fxcore-text);
   background: rgba(240, 185, 11, 0.06);
 }
-.side-tab:hover .glyph { color: var(--fxcore-accent); }
-.side-tab.active {
+.top-tab:hover .glyph { color: var(--fxcore-accent); }
+.top-tab.active {
   color: var(--fxcore-accent);
   background: rgba(240, 185, 11, 0.10);
-  border-color: var(--fxcore-panel-border-strong);
-  box-shadow: var(--fxcore-glow-accent);
   text-shadow: 0 0 12px rgba(240, 185, 11, 0.4);
 }
-.side-tab.active::before {
+.top-tab.active::after {
   content: '';
   position: absolute;
-  left: -1px; top: 6px; bottom: 6px;
-  width: 3px;
-  background: linear-gradient(180deg, var(--fxcore-accent), rgba(240, 185, 11, 0.2));
+  left: 10px;
+  right: 10px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--fxcore-accent), rgba(240, 185, 11, 0.2));
   box-shadow: 0 0 8px rgba(240, 185, 11, 0.5);
-  border-radius: 2px;
-}
-/* active 扫描光束（克制） */
-.side-tab.active::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0;
-  height: 60%;
-  top: -60%;
-  background: linear-gradient(180deg, transparent, rgba(240, 185, 11, 0.08), transparent);
-  animation: scan 4s linear infinite;
-  pointer-events: none;
 }
 
-/* 侧边栏底部（系统状态） */
-.side-foot {
-  padding: 12px 8px 0;
-  border-top: 1px solid var(--fxcore-panel-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.side-foot .sys-row {
+/* 顶部右侧状态（SYSTEM/TIME + 语言 + 登出） */
+.top-right {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 14px;
+  white-space: nowrap;
+}
+.top-right .sys-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--fxcore-font-mono);
   font-size: 10.5px;
   letter-spacing: 0.08em;
   color: var(--fxcore-text-faint);
 }
-.side-foot .sys-row .led {
-  width: 6px; height: 6px; border-radius: 50%;
+.top-right .sys-row .led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   background: var(--fxcore-up);
   box-shadow: 0 0 8px var(--fxcore-up);
   animation: led-pulse 2s ease-in-out infinite;
@@ -255,16 +240,13 @@ body::after {
 /* 内容主列 */
 .app-main { min-width: 0; }
 
-/* ===== 吸顶状态条（B+C：窄条，信息已移到侧栏则弱化） ===== */
+/* ===== 状态条（面包屑 + 绿点 + 邮箱，顶部导航下方） ===== */
 .app-statusbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 8px 16px;
   margin-bottom: 18px;
   background: var(--fxcore-panel-deep);
   border: 1px solid var(--fxcore-panel-border);
@@ -1715,24 +1697,13 @@ button.chip:hover {
 
 /* 窄屏壳与顶栏 */
 @media (max-width: 1100px) {
-  /* 侧边导航折叠为顶栏横排 */
-  .app-frame { grid-template-columns: 1fr; gap: 14px; padding: 0 16px 32px; }
-  .app-sidebar {
-    position: static;
-    min-height: 0;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px 12px 12px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-  .app-sidebar .brand-wrap { padding: 0 8px 10px; }
-  .app-sidebar .brand-wrap .sub { display: none; }
-  .app-sidebar .side-nav { flex-direction: row; flex-wrap: wrap; gap: 6px; }
-  .side-tab { padding: 7px 12px; font-size: 13px; }
-  .side-tab.active::before { display: none; }
-  .side-tab.active::after { display: none; }
-  .app-sidebar .side-foot { flex-direction: row; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; padding: 10px 8px 0; }
+  .app-frame { padding: 0 16px 32px; }
+  .app-topnav { padding: 8px 14px; gap: 8px 14px; }
+  .app-topnav .brand-wrap .sub { display: none; }
+}
+@media (max-width: 900px) {
+  .app-topnav .brand-wrap { border-right: none; padding-right: 0; }
+  .top-right .sys-row { display: none; }
 }
 @media (max-width: 640px) {
   .app-shell { padding: 0 12px 32px; }
@@ -1742,6 +1713,8 @@ button.chip:hover {
   .app-user { gap: 8px; font-size: 12px; }
   .nav-tab { padding: 6px 10px; font-size: 12px; }
   .app-frame { padding: 0 12px 28px; }
+  .top-tab { padding: 6px 9px; font-size: 12px; }
+  .top-tab .glyph { display: none; }
   .app-statusbar .st-mono { display: none; }
 }
 
