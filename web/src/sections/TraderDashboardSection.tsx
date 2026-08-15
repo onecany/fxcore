@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { PageHead, Panel } from '../components/ui';
 import { fmtUsd, fmtPct, fmtDur } from '../utils/format';
-import { useTraderTerminal, realizedOf } from './dashboard/useTraderTerminal';
-import { UP, DOWN, TmCard, PhStat, CfgRow, EquityCurve } from './dashboard/primitives';
+import { useTraderTerminal, realizedOf, TABLE_PAGE_SIZE } from './dashboard/useTraderTerminal';
+import { UP, DOWN, TmCard, PhStat, CfgRow, EquityCurve, Pager } from './dashboard/primitives';
 import { DecisionCard, fmtClock, pnlColor, fmtSharpe } from './dashboard/exec-log';
 import { ExchangeBalances } from './dashboard/exchange-balances';
 import { TraderSelect } from './dashboard/TraderSelect';
@@ -20,6 +20,9 @@ export default function TraderDashboardSection() {
   const [traderId, setTraderId] = useTraderIdFromURL();
   const {
     traders, trader, equities, decisions, positions, history, orders,
+    decisionsPage, setDecisionsPage, decisionsTotalPages,
+    ordersPage, setOrdersPage, ordersTotalPages,
+    historyPage, setHistoryPage, historyTotalPages,
     equity, latest, pnl, unrealizedPnl, maxDd, equityChgPct, stats, error,
   } = useTraderTerminal(traderId);
 
@@ -147,12 +150,13 @@ export default function TraderDashboardSection() {
               </table></div>
             ) : <div className="muted mono empty-hint">📊 No Positions · 无活动持仓</div>}
           </Panel>
-          <Panel title={`Execution Log (${decisions.length} cyc)`}>
+          <Panel title={`Execution Log (${decisions.length} cyc · ${decisionsPage}/${decisionsTotalPages})`}>
             {decisions.length > 0 ? (
               <div className="dash-stack">
                 {decisions.map((d) => <DecisionCard key={d.id} d={d} />)}
               </div>
             ) : <div className="muted mono empty-hint">// 暂无决策记录</div>}
+            <Pager page={decisionsPage} totalPages={decisionsTotalPages} onPage={setDecisionsPage} />
           </Panel>
         </div>
 
@@ -211,7 +215,7 @@ export default function TraderDashboardSection() {
               <div className="table-wrap"><table className="data-table">
                 <thead><tr><th>币种</th><th>类型</th><th>状态</th><th>数量</th><th>价格</th></tr></thead>
                 <tbody>
-                  {orders.slice(0, 6).map((o) => (
+                  {orders.slice((ordersPage - 1) * TABLE_PAGE_SIZE, ordersPage * TABLE_PAGE_SIZE).map((o) => (
                     <tr key={o.id}>
                       <td className="mono">{o.symbol}</td>
                       <td className="mono dim">{o.type}</td>
@@ -223,6 +227,7 @@ export default function TraderDashboardSection() {
                 </tbody>
               </table></div>
             ) : <div className="muted mono empty-hint">// NO ORDERS</div>}
+            <Pager page={ordersPage} totalPages={ordersTotalPages} onPage={setOrdersPage} />
           </Panel>
         </div>
       </div>
@@ -267,7 +272,7 @@ export default function TraderDashboardSection() {
                 <div className="table-wrap"><table className="data-table">
                   <thead><tr><th>币种</th><th>方向</th><th>盈亏</th><th>Fee</th><th>时长</th><th>平仓</th></tr></thead>
                   <tbody>
-                    {history.slice(0, 8).map((p) => (
+                    {history.slice((historyPage - 1) * TABLE_PAGE_SIZE, historyPage * TABLE_PAGE_SIZE).map((p) => (
                       <tr key={p.id}>
                         <td className="mono">{p.symbol}</td>
                         <td style={{ color: p.side === 'long' ? UP : DOWN }}>{p.side === 'long' ? '多' : '空'}</td>
@@ -279,6 +284,7 @@ export default function TraderDashboardSection() {
                     ))}
                   </tbody>
                 </table></div>
+                <Pager page={historyPage} totalPages={historyTotalPages} onPage={setHistoryPage} />
               </div>
             </>
           ) : <div className="muted mono empty-hint">// NO CLOSED POSITIONS</div>}

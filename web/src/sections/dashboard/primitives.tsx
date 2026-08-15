@@ -70,3 +70,15 @@ export function EquityCurve({ points, height = 130 }: { points: EquitySnapshot[]
     </svg>
   );
 }
+
+/** 分页控件：◀ 页码 ▶（总页数 ≤1 时不渲染，保持布局干净） */
+export function Pager({ page, totalPages, onPage }: { page: number; totalPages: number; onPage: (p: number) => void }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="pager">
+      <button className="pager-btn" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="上一页">◀</button>
+      <span className="pager-info mono">{page} / {totalPages}</span>
+      <button className="pager-btn" disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="下一页">▶</button>
+    </div>
+  );
+}

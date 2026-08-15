@@ -3204,3 +3204,36 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .ev-row { margin-bottom: 3px; }
 .ev-type { color: var(--fxcore-accent); }
 .ev-data { color: var(--fxcore-text-dim); }
+
+/* 分页控件（交易终端 2026-08） */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 2px;
+  justify-content: flex-end;
+}
+.pager-btn {
+  background: rgba(240, 185, 11, 0.06);
+  border: 1px solid var(--fxcore-panel-border);
+  color: var(--fxcore-accent);
+  border-radius: var(--fxcore-r-sm);
+  padding: 2px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pager-btn:hover:not(:disabled) {
+  background: rgba(240, 185, 11, 0.14);
+  border-color: var(--fxcore-accent);
+}
+.pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.pager-info {
+  font-size: 11px;
+  color: var(--fxcore-text-dim);
+  min-width: 44px;
+  text-align: center;
+}
