@@ -1,6 +1,7 @@
 // 落地页吸顶导航：品牌 + 锚点（功能/行情/安全）+ 语言切换 + 登录 CTA。
 import { useNavigate } from 'react-router';
 import { LangSwitch } from './LangSwitch';
+import { ThemeToggle } from './ThemeToggle';
 import { useT } from '../stores/i18nStore';
 
 export function LandingNav() {
@@ -29,6 +30,7 @@ export function LandingNav() {
           ))}
         </nav>
         <div className="ln-actions">
+          <ThemeToggle />
           <LangSwitch />
           <button className="btn primary" onClick={() => navigate('/login')}>
             {t.auth.login}
