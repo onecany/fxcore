@@ -13,24 +13,20 @@ import (
 func BuildSystemPrompt(cfg dto.StrategyConfig) string {
 	var b strings.Builder
 	b.WriteString("# Exclusive Role Definition | Rigid Locked\n")
-	if cfg.PromptSections != nil {
-		if cfg.PromptSections.RoleDefinition != "" {
-			b.WriteString("\n" + cfg.PromptSections.RoleDefinition + "\n")
-		} else {
-			b.WriteString("You are an experienced crypto futures trader operating an automated trading system.\n")
-
-		}
+	if cfg.PromptSections != nil && cfg.PromptSections.RoleDefinition != "" {
+		b.WriteString("\n" + cfg.PromptSections.RoleDefinition + "\n\n")
+	} else {
+		b.WriteString("You are an experienced crypto futures trader operating an automated trading system.\n\n")
 	}
 	b.WriteString("# Mandatory Output Format | Absolutely Unchangeable\n")
-	b.WriteString("All responses **must contain only standardized XML structure** with no extra text, explanations, comments, formulas or auxiliary symbols. Only precise integers and decimals are permitted for all numerical values. Never use thousand separators, tildes, unit suffixes, or approximate rounded values.\n")
-	b.WriteString("Fixed exclusive output format:\n\n")
-	b.WriteString("```Plain Text\n\n")
+	b.WriteString("- All responses **must contain only standardized XML structure** with no extra text, explanations, comments, formulas or auxiliary symbols. Only precise integers and decimals are permitted for all numerical values. Never use thousand separators, tildes, unit suffixes, or approximate rounded values.\n")
+	b.WriteString("Fixed exclusive output format:\n")
+	b.WriteString("```Plain Text\n")
 	b.WriteString("<reasoning>Concise logical analysis summary (1-3 sentences covering market cycle, core technical signals, multi-timeframe verification results, volume/OI coordination, and risk control judgment)</reasoning>\n")
 	b.WriteString("<decision>Standard JSON array (only fields specified by the rules)</decision>\n")
 	b.WriteString("```\n\n")
 
-	b.WriteString("# Global Fixed Trading Parameters | Permanently Locked (No Modifications Allowed)\n\n")
-	b.WriteString("- Asset Source: Static fixed coin pool. No manual additions, deletions or substitutions are allowed.\n\n")
+	b.WriteString("# Global Fixed Trading Parameters | Permanently Locked (No Modifications Allowed)\n")
 
 	fmt.Fprintf(&b, "- Coin source: %s\n", cfg.CoinSource.SourceType)
 	if len(cfg.CoinSource.StaticCoins) > 0 {
@@ -49,31 +45,31 @@ func BuildSystemPrompt(cfg dto.StrategyConfig) string {
 		fmt.Fprintf(&b, "- Min position size: %.0f USDT (BTC/ETH min 60)\n", cfg.RiskControl.MinPositionSize)
 	}
 	if cfg.RiskControl.MinRiskRewardRatio > 0 {
-		fmt.Fprintf(&b, "- Min risk/reward: %.1f | Min confidence: %.0f%%\n",
+		fmt.Fprintf(&b, "- Min risk/reward: %.1f | Min confidence: %.0f%%\n\n",
 			cfg.RiskControl.MinRiskRewardRatio, cfg.RiskControl.MinConfidence*100)
 	}
 
 	// 决策动作契约（六值）
-	b.WriteString("# Trading Action Enumeration | Fixed Valid Values Only\n\n")
-	b.WriteString("Only six trading actions are permitted: open_long, open_short, close_long, close_short, hold, wait\n\n")
-	b.WriteString("All position-opening actions**must include the complete mandatory field set without omission**: symbol, quantity, leverage, stop_loss, take_profit, confidence, risk_usd. All field values must be pure numeric values with no additional characters, symbols or unit labels.\n")
+	b.WriteString("# Trading Action Enumeration | Fixed Valid Values Only\n")
+	b.WriteString("- Only six trading actions are permitted: open_long, open_short, close_long, close_short, hold, wait\n")
+	b.WriteString("- All position-opening actions**must include the complete mandatory field set without omission**: symbol, quantity, leverage, stop_loss, take_profit, confidence, risk_usd. All field values must be pure numeric values with no additional characters, symbols or unit labels.\n\n")
 
 	// 模式变体（§9.5 writeModeVariant；四种模式，内置段英文契约）
 	writeModeVariant(&b, cfg.PromptVariant)
 
 	// 用户编辑段 VERBATIM 透传（§9.3 语言契约：不过滤中文）
 	if cfg.CustomPrompt != "" {
-		b.WriteString("\n[User custom prompt - follow verbatim]\n" + cfg.CustomPrompt + "\n")
+		b.WriteString("\n# User custom prompt - follow verbatim\n" + cfg.CustomPrompt + "\n")
 	}
 	if cfg.PromptSections != nil {
 		if cfg.PromptSections.TradingFrequency != "" {
-			b.WriteString("\n[Trading frequency]\n" + cfg.PromptSections.TradingFrequency + "\n")
+			b.WriteString("\n# Trading frequency\n" + cfg.PromptSections.TradingFrequency + "\n")
 		}
 		if cfg.PromptSections.EntryStandards != "" {
-			b.WriteString("\n[Entry standards]\n" + cfg.PromptSections.EntryStandards + "\n")
+			b.WriteString("\n# Entry standards\n" + cfg.PromptSections.EntryStandards + "\n")
 		}
 		if cfg.PromptSections.DecisionProcess != "" {
-			b.WriteString("\n[Decision process]\n" + cfg.PromptSections.DecisionProcess + "\n")
+			b.WriteString("\n# Decision process\n" + cfg.PromptSections.DecisionProcess + "\n")
 		}
 	}
 	return b.String()
