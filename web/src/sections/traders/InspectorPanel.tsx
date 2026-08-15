@@ -21,12 +21,12 @@ export function InspectorPanel({ trader, modelNameOf, accountOf, onOpenTerminal 
   const pnl = trader.metrics?.totalPnl ?? 0;
   return (
     <Panel title={`DETAILS · ${trader.name}`}>
-      <div className="row wrap" style={{ gap: 8, marginBottom: 10 }}>
+      <div className="row wrap insp-head">
         <Badge state={trader.status} />
         <ExchangeIcon type={trader.exchange} size={16} />
-        <span className="mono dim" style={{ fontSize: 11 }}>{trader.exchange.toUpperCase()} - {accountOf(trader)}</span>
+        <span className="mono dim">{trader.exchange.toUpperCase()} - {accountOf(trader)}</span>
       </div>
-      <div className="tm-grid-5" style={{ marginBottom: 10 }}>
+      <div className="tm-grid-5 insp-metrics">
         <InspectorMetric label="PnL" value={fmtPnL(pnl)} tone={pnl >= 0 ? 'up' : 'down'} />
         <InspectorMetric label="WR" value={fmtPct(trader.metrics?.winRate, 0)} />
         <InspectorMetric label="trades" value={String(trader.metrics?.tradeCount ?? 0)} />
@@ -40,7 +40,7 @@ export function InspectorPanel({ trader, modelNameOf, accountOf, onOpenTerminal 
       <CfgRow k="止盈" v={fmtPct(trader.riskConfig?.takeProfit)} />
       <CfgRow k="日损上限" v={fmtPct(trader.riskConfig?.maxDailyLoss)} />
       <CfgRow k="周期" v={formatCycle(trader.schedule?.interval)} />
-      <button className="btn primary" style={{ width: '100%', marginTop: 12 }} onClick={() => onOpenTerminal(trader)}>
+      <button className="btn primary insp-cta" onClick={() => onOpenTerminal(trader)}>
         ▸ 打开终端
       </button>
     </Panel>

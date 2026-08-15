@@ -53,11 +53,11 @@ function ResourcePanel({ title, count, empty, onAction, children }: {
   return (
     <Panel title={`${title} (${count})`}>
       {count === 0 ? (
-        <div className="muted mono" style={{ fontSize: 11, padding: '8px 0' }}>{empty}</div>
+        <div className="muted mono empty-hint">{empty}</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
+        <div className="resource-stack">{children}</div>
       )}
-      <button className="btn ghost" style={{ width: '100%', marginTop: 10, padding: '4px 8px', fontSize: 11 }} onClick={onAction}>
+      <button className="btn ghost btn-sm resource-cta" onClick={onAction}>
         CONFIG ▸
       </button>
     </Panel>
@@ -70,11 +70,11 @@ function ResourceCard({ icon, name, meta, status, tone }: {
   return (
     <div className="resource-card">
       <div className="resource-head">
-        <span className="row" style={{ gap: 6, minWidth: 0 }}>
+        <span className="resource-name-wrap">
           {icon}
           <span className="resource-name">{name}</span>
         </span>
-        <span className={`sys-status ${tone}`} style={{ fontSize: 10, padding: '1px 8px' }}>
+        <span className={`sys-status ${tone} resource-status`}>
           <span className="led" />{status}
         </span>
       </div>
