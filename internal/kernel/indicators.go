@@ -148,17 +148,83 @@ func boll(closes []float64, period int) (mid, upper, lower float64, ok bool) {
 	return mid, upper, lower, true
 }
 
+// atrSeries 计算 ATR（Wilder 平滑，与 RSI 同模式）：
+// TR = max(H-L, |H-prevClose|, |L-prevClose|)，种子 = 前 period 根 TR 的 SMA，之后 Wilder 递推。
+func atrSeries(highs, lows, closes []float64, period int) []float64 {
+	if len(highs) <= period || len(lows) <= period || len(closes) <= period {
+		return nil
+	}
+	trs := make([]float64, 0, len(closes)-1)
+	for i := 1; i < len(closes); i++ {
+		hl := highs[i] - lows[i]
+		hc := math.Abs(highs[i] - closes[i-1])
+		lc := math.Abs(lows[i] - closes[i-1])
+		trs = append(trs, math.Max(hl, math.Max(hc, lc)))
+	}
+	if len(trs) < period {
+		return nil
+	}
+	sum := 0.0
+	for i := 0; i < period; i++ {
+		sum += trs[i]
+	}
+	out := make([]float64, 0, len(trs)-period+1)
+	prev := sum / float64(period)
+	out = append(out, prev)
+	for i := period; i < len(trs); i++ {
+		prev = (prev*float64(period-1) + trs[i]) / float64(period)
+		out = append(out, prev)
+	}
+	return out
+}
+
+// atrLast 取 ATR 序列末值。
+func atrLast(highs, lows, closes []float64, period int) (float64, bool) {
+	series := atrSeries(highs, lows, closes, period)
+	if len(series) == 0 {
+		return 0, false
+	}
+	return series[len(series)-1], true
+}
+
+// volumeStats 成交量统计：最近一根 vs 前 window 根均量（量比）。数据不足或均量为零返回 ok=false。
+func volumeStats(volumes []float64, window int) (last, avg, ratio float64, ok bool) {
+	if len(volumes) < window+1 {
+		return 0, 0, 0, false
+	}
+	last = volumes[len(volumes)-1]
+	sum := 0.0
+	for i := len(volumes) - window - 1; i < len(volumes)-1; i++ {
+		sum += volumes[i]
+	}
+	avg = sum / float64(window)
+	if avg == 0 {
+		return 0, 0, 0, false
+	}
+	return last, avg, last / avg, true
+}
+
 // ========== K 线 + 指标 → 用户上下文 ==========
 
 // BuildKlineContext 把 K 线数据与技术指标计算值格式化为 user 消息内容。
-// 输出：最近 N 根 OHLCV 摘要 + 按 config 开关启用的指标值（EMA 周期列表 / MACD / RSI 周期列表）。
+// 输出：最近 N 根 OHLCV 摘要 + 按 config 开关启用的指标值（EMA/MACD/RSI/BOLL/ATR 周期列表、Volume 量比、OI、Funding）。
 // klines 按时间升序（provider 归一化）；指标数据不足时自动跳过，不产生错误。
 func BuildKlineContext(klines []dto.KlineDTO, cfg dto.StrategyConfig) string {
+	return buildKlineContext(klines, cfg, "Market data (candles, newest last):\n")
+}
+
+// BuildKlineContextTF 带时间框架标签的 K 线上下文（多时间框架模式用）。
+func BuildKlineContextTF(klines []dto.KlineDTO, cfg dto.StrategyConfig, timeframe string) string {
+	return buildKlineContext(klines, cfg, fmt.Sprintf("Market data [%s] (candles, newest last):\n", timeframe))
+}
+
+// buildKlineContext 内部实现（header 由调用方指定，多时间框架传 TF 标签）。
+func buildKlineContext(klines []dto.KlineDTO, cfg dto.StrategyConfig, header string) string {
 	if len(klines) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("Market data (candles, newest last):\n")
+	b.WriteString(header)
 	// 全量输出最多 60 根（防 token 爆炸；summary 行覆盖窗口外）
 	from := 0
 	if len(klines) > 60 {
@@ -172,8 +238,14 @@ func BuildKlineContext(klines []dto.KlineDTO, cfg dto.StrategyConfig) string {
 	}
 	// 技术指标（按 config 开关）
 	closes := make([]float64, 0, len(klines))
+	highs := make([]float64, 0, len(klines))
+	lows := make([]float64, 0, len(klines))
+	volumes := make([]float64, 0, len(klines))
 	for _, k := range klines {
 		closes = append(closes, k.Close)
+		highs = append(highs, k.High)
+		lows = append(lows, k.Low)
+		volumes = append(volumes, k.Volume)
 	}
 	ind := cfg.Indicators
 	if ind.EnableEMA && len(ind.EMAPeriods) > 0 {
@@ -207,6 +279,38 @@ func BuildKlineContext(klines []dto.KlineDTO, cfg dto.StrategyConfig) string {
 		for _, p := range ind.BollPeriods {
 			if mid, upper, lower, ok := boll(closes, p); ok {
 				b.WriteString(fmt.Sprintf("BOLL%d: mid=%.4f upper=%.4f lower=%.4f\n", p, mid, upper, lower))
+			}
+		}
+	}
+	if ind.EnableATR && len(ind.ATRPeriods) > 0 {
+		vals := make([]string, 0, len(ind.ATRPeriods))
+		for _, p := range ind.ATRPeriods {
+			if v, ok := atrLast(highs, lows, closes, p); ok {
+				vals = append(vals, fmt.Sprintf("ATR%d=%.4f", p, v))
+			}
+		}
+		if len(vals) > 0 {
+			b.WriteString("Indicators: " + strings.Join(vals, " ") + "\n")
+		}
+	}
+	if ind.EnableVolume {
+		if last, avg, ratio, ok := volumeStats(volumes, 20); ok {
+			b.WriteString(fmt.Sprintf("Volume: last=%.1f avg20=%.1f ratio=%.2f\n", last, avg, ratio))
+		}
+	}
+	if ind.EnableOI {
+		for i := len(klines) - 1; i >= 0; i-- {
+			if klines[i].OI != 0 {
+				b.WriteString(fmt.Sprintf("Open Interest: %.4f\n", klines[i].OI))
+				break
+			}
+		}
+	}
+	if ind.EnableFundingRate {
+		for i := len(klines) - 1; i >= 0; i-- {
+			if klines[i].Funding != 0 {
+				b.WriteString(fmt.Sprintf("Funding rate: %.6f\n", klines[i].Funding))
+				break
 			}
 		}
 	}

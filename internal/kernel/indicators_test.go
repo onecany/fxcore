@@ -178,3 +178,76 @@ func containsStr(s, sub string) bool {
 		return false
 	})()
 }
+
+// ATR 手工值：period=2。
+// TR[1] = max(14-11, |14-10|, |11-10|) = max(3,4,1) = 4；TR[2] = max(15-12, |15-12|, |12-12|) = 3
+// 种子 SMA = (4+3)/2 = 3.5。
+func TestATRManual(t *testing.T) {
+	highs := []float64{11, 14, 15}
+	lows := []float64{9, 11, 12}
+	closes := []float64{10, 12, 13}
+	v, ok := atrLast(highs, lows, closes, 2)
+	if !ok {
+		t.Fatalf("want ok=true")
+	}
+	if math.Abs(v-3.5) > 1e-9 {
+		t.Fatalf("ATR=%.6f want 3.5", v)
+	}
+}
+
+// ATR 数据不足（len <= period）→ ok=false。
+func TestATRNotEnoughData(t *testing.T) {
+	if _, ok := atrLast([]float64{1}, []float64{1}, []float64{1}, 2); ok {
+		t.Fatalf("want ok=false for insufficient data")
+	}
+}
+
+// volumeStats：最近一根 vs 前 window 根均量。
+func TestVolumeStats(t *testing.T) {
+	volumes := make([]float64, 0, 22)
+	for i := 0; i < 21; i++ {
+		volumes = append(volumes, 1000)
+	}
+	volumes = append(volumes, 2000)
+	last, avg, ratio, ok := volumeStats(volumes, 20)
+	if !ok || last != 2000 || avg != 1000 || math.Abs(ratio-2.0) > 1e-9 {
+		t.Fatalf("volume stats = %v %v %v (ok=%v), want 2000/1000/2.0", last, avg, ratio, ok)
+	}
+}
+
+// BuildKlineContext：ATR/Volume/OI/Funding 按 config 开关输出。
+func TestBuildKlineContextExtIndicators(t *testing.T) {
+	klines := make([]dto.KlineDTO, 0, 40)
+	for i := 0; i < 40; i++ {
+		o, h, l, c := 100.0, 102.0, 98.0, 101.0
+		klines = append(klines, dto.KlineDTO{
+			Timestamp: int64(1700000000 + i*60),
+			Open:      o, High: h, Low: l, Close: c, Volume: 1000,
+			OI: 500.5, Funding: 0.0001,
+		})
+	}
+	cfg := dto.StrategyConfig{
+		Indicators: dto.IndicatorConfig{
+			EnableATR:         true,
+			ATRPeriods:        []int{14},
+			EnableVolume:      true,
+			EnableOI:          true,
+			EnableFundingRate: true,
+		},
+	}
+	out := BuildKlineContext(klines, cfg)
+	for _, want := range []string{"ATR14=", "Volume: last=", "Open Interest: 500.5000", "Funding rate: 0.000100"} {
+		if !containsStr(out, want) {
+			t.Fatalf("missing %q in context:\n%s", want, out)
+		}
+	}
+}
+
+// BuildKlineContextTF：多时间框架标签输出。
+func TestBuildKlineContextTF(t *testing.T) {
+	klines := []dto.KlineDTO{{Timestamp: 1, Open: 100, High: 101, Low: 99, Close: 100, Volume: 1000}}
+	out := BuildKlineContextTF(klines, dto.StrategyConfig{}, "1h")
+	if !containsStr(out, "Market data [1h]") {
+		t.Fatalf("expected TF label in context:\n%s", out)
+	}
+}
