@@ -1,4 +1,5 @@
-// 编队网格：trader 卡片（状态灯 + 名称 + meta + 指标行 PnL/WR/trades + 动作按钮），点击选中。
+// 编队网格：trader 卡片（状态灯 + 名称 + meta + 4 指标格 + 分组动作按钮），点击选中。
+// 卡片毛玻璃 + 选中金色光晕；动作按钮分次操作组（View/Edit）与主操作组（Start/Pause/Resume/Stop）。
 import { Panel, Badge } from '../../components/ui';
 import { ExchangeIcon } from '../../components/exchange-icon';
 import type { TraderResponse } from '../../api/v1/types/contract';
@@ -18,12 +19,13 @@ export function TraderGrid({ items, selectedId, onSelect, modelNameOf, accountOf
   return (
     <Panel title={`Current Traders (${items.length})`} className="fleet-grid-panel">
       {items.length === 0 ? (
-        <div className="muted mono" style={{ fontSize: 12, padding: '18px 0', textAlign: 'center' }}>// NO TRADERS IN FLEET</div>
+        <div className="muted mono empty-hint centered">// NO TRADERS IN FLEET</div>
       ) : (
         <div className="fleet-cards">
           {items.map((t) => {
             const selected = t.id === selectedId;
             const pnl = t.metrics?.totalPnl ?? 0;
+            const daily = t.metrics?.dailyPnl ?? 0;
             return (
               <div
                 key={t.id}
@@ -44,23 +46,28 @@ export function TraderGrid({ items, selectedId, onSelect, modelNameOf, accountOf
                   <MetricCell label="PnL" value={fmtPnL(pnl)} tone={pnl >= 0 ? 'up' : 'down'} />
                   <MetricCell label="WR" value={fmtPct(t.metrics?.winRate, 0)} />
                   <MetricCell label="trades" value={String(t.metrics?.tradeCount ?? 0)} />
+                  <MetricCell label="daily" value={fmtPnL(daily)} tone={daily >= 0 ? 'up' : 'down'} />
                 </div>
                 <div className="trader-card-actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="btn ghost" onClick={() => onView(t)} style={{ padding: '3px 10px', fontSize: 11 }}>View</button>
-                  <button className="btn ghost" onClick={() => onEdit(t)} disabled={t.status === 'running'} style={{ padding: '3px 10px', fontSize: 11 }}>Edit</button>
-                  {t.status === 'idle' || t.status === 'stopped' ? (
-                    <button className="btn primary" onClick={() => void runAction(t.id, 'start')} style={{ padding: '3px 10px', fontSize: 11 }}>▶ Start</button>
-                  ) : t.status === 'running' ? (
-                    <>
-                      <button className="btn" onClick={() => void runAction(t.id, 'pause')} style={{ padding: '3px 10px', fontSize: 11 }}>⏸ Pause</button>
-                      <button className="btn danger" onClick={() => void runAction(t.id, 'stop')} style={{ padding: '3px 10px', fontSize: 11 }}>■ Stop</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="btn primary" onClick={() => void runAction(t.id, 'resume')} style={{ padding: '3px 10px', fontSize: 11 }}>▶ Resume</button>
-                      <button className="btn danger" onClick={() => void runAction(t.id, 'stop')} style={{ padding: '3px 10px', fontSize: 11 }}>■ Stop</button>
-                    </>
-                  )}
+                  <div className="tc-group tc-sub">
+                    <button className="btn ghost btn-sm" onClick={() => onView(t)}>View</button>
+                    <button className="btn ghost btn-sm" onClick={() => onEdit(t)} disabled={t.status === 'running'}>Edit</button>
+                  </div>
+                  <div className="tc-group tc-main">
+                    {t.status === 'idle' || t.status === 'stopped' ? (
+                      <button className="btn primary btn-sm" onClick={() => void runAction(t.id, 'start')}>▶ Start</button>
+                    ) : t.status === 'running' ? (
+                      <>
+                        <button className="btn btn-sm" onClick={() => void runAction(t.id, 'pause')}>⏸ Pause</button>
+                        <button className="btn danger btn-sm" onClick={() => void runAction(t.id, 'stop')}>■ Stop</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn primary btn-sm" onClick={() => void runAction(t.id, 'resume')}>▶ Resume</button>
+                        <button className="btn danger btn-sm" onClick={() => void runAction(t.id, 'stop')}>■ Stop</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             );
