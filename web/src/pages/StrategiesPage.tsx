@@ -212,6 +212,10 @@ export default function StrategiesPage() {
     try {
       const p = await strategyApi.previewPrompt(selected.config);
       setPreview(p.prompt);
+      // 跳转到提示词阅览区（等渲染后平滑滚动）
+      setTimeout(() => {
+        document.getElementById('prompt-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
     } catch (err) { setError(String(err)); }
   };
 
@@ -300,7 +304,7 @@ export default function StrategiesPage() {
                 </div>
               </div>
 
-              {/* 编辑三栏：左风格/风控 → 中提示词 → 右币源/K线/指标 */}
+              {/* 编辑两栏：左风格/风控/币源 → 右提示词/K线/指标 */}
               <div className="studio-editor-grid">
                 <div className="studio-col-config">
                   <ConfigColumn
@@ -308,16 +312,14 @@ export default function StrategiesPage() {
                     activeProfile={activeProfile}
                     draft={draft}
                     onApplyProfile={applyProfile}
+                    cs={cs}
+                    setCs={setCs}
+                    csDirty={csDirty}
                   />
                 </div>
                 <div className="studio-col-prompt">
                   <PromptColumn draft={draft} selected={selected} setDraft={setDraft} />
-                </div>
-                <div className="studio-col-market">
                   <MarketColumn
-                    cs={cs}
-                    setCs={setCs}
-                    csDirty={csDirty}
                     klineCfg={klineCfg}
                     setKline={setKline}
                     toggleTF={toggleTF}
@@ -398,9 +400,11 @@ export default function StrategiesPage() {
                 )}
 
                 {preview ? (
-                  <Terminal title={`SYSTEM PROMPT · ${selected.name.toUpperCase().slice(0, 16)} · PREVIEW`}>
-                    {preview}
-                  </Terminal>
+                  <div id="prompt-preview" className="prompt-preview-target">
+                    <Terminal title={`SYSTEM PROMPT · ${selected.name.toUpperCase().slice(0, 16)} · PREVIEW`}>
+                      {preview}
+                    </Terminal>
+                  </div>
                 ) : (
                   <div className="muted mono preview-hint">// 点击「⌨ 预览提示词」查看当前策略系统提示词</div>
                 )}

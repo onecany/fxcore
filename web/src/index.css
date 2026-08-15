@@ -963,23 +963,18 @@ body::after {
   margin-bottom: 10px;
 }
 
-/* 编辑三栏：左风格/风控（230）| 中提示词（1fr）| 右币源/K线/指标（290） */
+/* 编辑两栏超宽：左配置 30% | 右提示词/K线/指标 70%（主编辑区优先） */
 .studio-editor-grid {
   display: grid;
-  grid-template-columns: minmax(0, 230px) minmax(0, 1fr) minmax(0, 290px);
-  gap: 12px;
+  grid-template-columns: minmax(0, 0.3fr) minmax(0, 0.7fr);
+  gap: 14px;
   align-items: start;
   margin-bottom: 14px;
 }
-.studio-col-config, .studio-col-prompt, .studio-col-market { min-width: 0; }
+.studio-col-config, .studio-col-prompt { min-width: 0; }
+.studio-col-prompt { display: flex; flex-direction: column; gap: 12px; }
 @media (max-width: 1100px) {
-  .studio-editor-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 290px); }
-  .studio-col-config { grid-column: 1 / -1; }
-  .studio-col-config .style-cards { flex-wrap: wrap; }
-}
-@media (max-width: 900px) {
   .studio-editor-grid { grid-template-columns: minmax(0, 1fr); }
-  .studio-col-config { grid-column: auto; }
 }
 
 /* 二级 tab（编辑 | 提示词） */
@@ -1002,8 +997,8 @@ body::after {
   text-shadow: 0 0 10px rgba(240, 185, 11, 0.35);
 }
 
-/* 风格档位卡 */
-.style-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+/* 风格档位卡（2×2 网格） */
+.style-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .style-card {
   flex: 1;
   min-width: 150px;
@@ -2610,9 +2605,7 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .sb-empty { padding: 14px 8px; font-size: 12px; }
 .sb-new { flex: 1; min-width: 0; }
 
-/* 左栏：风格卡竖排 + 风控网格 */
-.style-cards-col { flex-direction: column; }
-.style-cards-col .style-card { width: 100%; min-width: 0; }
+/* 左栏：风控网格 */
 .risk-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2661,15 +2654,43 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .field-full { grid-column: 1 / -1; }
 .row-gap { gap: 10px; }
 .ind-row { margin-top: 4px; }
-.num-sm { width: 90px; }
-.num-md { width: 150px; }
+.num-sm { width: 130px; }
+.num-md { width: 200px; }
 .chips-top { margin-top: 8px; }
 .src-note { font-size: 11px; margin-top: 8px; }
+/* 策略编辑区输入控件统一加大（40px 行高，抗拥挤） */
+.studio-editor-grid input, .studio-editor-grid select {
+  min-height: 40px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+}
+.studio-editor-grid .field label { font-size: 12.5px; }
+.studio-editor-grid .field { gap: 6px; }
+.studio-editor-grid .form-grid { gap: 14px; }
+.studio-editor-grid .studio-section { padding: 16px; margin-bottom: 14px; }
+.studio-editor-grid .prompt-area {
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.studio-editor-grid .checkbox-row { gap: 10px; font-size: 13px; }
+.studio-editor-grid input[type='checkbox'] { width: 18px; height: 18px; }
 /* chip 选中态（收敛原 inline 金色样式） */
 .chip.on {
   background: rgba(240, 185, 11, 0.14) !important;
   color: var(--fxcore-accent) !important;
   border-color: rgba(240, 185, 11, 0.45) !important;
+}
+
+/* K 线参数 + 技术指标（右列内部两栏，配置类内容并排不挤） */
+.kline-ind-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .kline-ind-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* 底部试跑 / 预览区 */
@@ -2686,3 +2707,5 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .test-prompt-details { margin-top: 8px; }
 .test-prompt-details summary { cursor: pointer; font-size: 12px; }
 .preview-hint { font-size: 12px; padding: 10px 0; }
+/* 提示词阅览区滚动定位（吸顶导航下方留白） */
+.prompt-preview-target { scroll-margin-top: 84px; }

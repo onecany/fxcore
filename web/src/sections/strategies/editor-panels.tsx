@@ -17,18 +17,21 @@ const SECTIONS = [
 
 type Draft = Record<string, unknown> | null;
 
-/** ===== 左栏：交易风格 4 档位卡 + 风控摘要 ===== */
-export function ConfigColumn({ selected, activeProfile, draft, onApplyProfile }: {
+/** ===== 左栏：交易风格 4 档位卡 + 风控摘要 + 币源 ===== */
+export function ConfigColumn({ selected, activeProfile, draft, onApplyProfile, cs, setCs, csDirty }: {
   selected: StrategyItem;
   activeProfile: string;
   draft: Draft;
   onApplyProfile: (p: ProfileDef) => void;
+  cs: CsEditable;
+  setCs: (patch: Partial<CoinSourceConfig>) => void;
+  csDirty: boolean;
 }) {
   return (
     <>
       <section className="studio-section">
         <div className="studio-section-title">▸ 交易风格</div>
-        <div className="style-cards style-cards-col">
+        <div className="style-cards">
           {PROFILES.map((p) => (
             <button
               key={p.value}
@@ -58,90 +61,7 @@ export function ConfigColumn({ selected, activeProfile, draft, onApplyProfile }:
           <RiskCell k="CONF" v={`${Math.round((selected.config?.riskControl?.minConfidence ?? 0.6) * 100)}%`} />
         </div>
       </section>
-    </>
-  );
-}
 
-/** ===== 中栏：用户提示词四段 + 补充指令（主编辑区） ===== */
-export function PromptColumn({ draft, selected, setDraft }: {
-  draft: Draft;
-  selected: StrategyItem;
-  setDraft: Dispatch<SetStateAction<Draft>>;
-}) {
-  const customValue = (draft?.custom_prompt as string | undefined) ?? selected.config?.customPrompt ?? '';
-  const customDirty = draft?.custom_prompt !== undefined && (draft.custom_prompt as string) !== (selected.config?.customPrompt ?? '');
-
-  return (
-    <section className="studio-section">
-      <div className="studio-section-title">▸ 用户提示词（custom_prompt · prompt_sections）</div>
-      <div className="dim prompt-desc">
-        语言契约：用户段 VERBATIM 透传进系统提示词，内置段保持英文，用户段不过滤。留空则不出现在提示词中。
-      </div>
-      {SECTIONS.map((f) => (
-        <div key={f.key} className="prompt-sec">
-          <div className="prompt-sec-title">▶ {f.label}（{f.key}）</div>
-          <textarea
-            className="prompt-area"
-            rows={2}
-            placeholder={f.ph}
-            value={(draft?.prompt_sections as Record<string, unknown> | undefined)?.[f.key] as string | undefined
-              ?? (selected.config?.promptSections as Record<string, string> | undefined)?.[camelKey(f.key)] ?? ''}
-            onChange={(e) => setDraft((prev) => {
-              // 基础 = draft 内已编辑段 ∪ 已保存存量（camel 键转 snake 回填）。
-              // 保证 draft.prompt_sections 始终带全四段：MergeConfigInto 对
-              // prompt_sections 逐字段合并，但前端仍发全量（与 setKline 同模式，
-              // 防御未来后端改回整体替换导致未编辑段被清空）。
-              const base = { ...((prev?.prompt_sections as Record<string, unknown> | undefined) ?? {}) };
-              const stored = selected.config?.promptSections as Record<string, string> | undefined;
-              if (stored) {
-                for (const [k, v] of Object.entries(stored)) {
-                  const snake = k.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
-                  if (!(snake in base)) base[snake] = v;
-                }
-              }
-              return {
-                ...(prev ?? {}),
-                prompt_sections: { ...base, [f.key]: e.target.value },
-              };
-            })}
-          />
-        </div>
-      ))}
-      <div className="prompt-sec-title prompt-sec-gap">▶ 补充指令（custom_prompt）</div>
-      <textarea
-        className="prompt-area"
-        rows={7}
-        placeholder="# 例如：优先选择 4h 周期突破形态的标的，避开消息面驱动的暴涨暴跌……"
-        value={customValue}
-        onChange={(e) => setDraft((prev) => ({ ...(prev ?? {}), custom_prompt: e.target.value }))}
-        onFocus={(e) => { if (e.target.value === (selected.config?.customPrompt ?? '')) setDraft((prev) => ({ ...(prev ?? {}), custom_prompt: e.target.value })); }}
-      />
-      <div className="prompt-foot">
-        <span className="mono dim">{customValue.length} chars · 中文/英文均可</span>
-        <span className="dim">
-          {customDirty
-            ? <span className="dirty-tag">● 已编辑，未保存</span>
-            : <span className="muted">未修改</span>}
-        </span>
-      </div>
-    </section>
-  );
-}
-
-/** ===== 右栏：币源 + K 线参数 + 技术指标 ===== */
-export function MarketColumn({ cs, setCs, csDirty, klineCfg, setKline, toggleTF, klineDirty, indicatorCfg, setIndicator }: {
-  cs: CsEditable;
-  setCs: (patch: Partial<CoinSourceConfig>) => void;
-  csDirty: boolean;
-  klineCfg: Partial<KlineConfig> & { primaryTimeframe: string; primaryCount: number; enableMultiTimeframe: boolean; selectedTimeframes: string[] };
-  setKline: (patch: Partial<KlineConfig>) => void;
-  toggleTF: (tf: string) => void;
-  klineDirty: boolean;
-  indicatorCfg: Partial<IndicatorConfig> & { enableEma: boolean; emaPeriods: number[]; enableMacd: boolean; enableRsi: boolean; rsiPeriods: number[]; enableBoll: boolean; bollPeriods: number[] };
-  setIndicator: (patch: Partial<IndicatorConfig>) => void;
-}) {
-  return (
-    <>
       {/* 币源（Coin Source） */}
       <section className="studio-section">
         <div className="studio-section-title">
@@ -230,7 +150,87 @@ export function MarketColumn({ cs, setCs, csDirty, klineCfg, setKline, toggleTF,
           {COIN_SOURCE_TYPES.find((t) => t.value === cs.sourceType)?.note}
         </div>
       </section>
+    </>
+  );
+}
 
+/** ===== 中栏：用户提示词四段 + 补充指令（主编辑区） ===== */
+export function PromptColumn({ draft, selected, setDraft }: {
+  draft: Draft;
+  selected: StrategyItem;
+  setDraft: Dispatch<SetStateAction<Draft>>;
+}) {
+  const customValue = (draft?.custom_prompt as string | undefined) ?? selected.config?.customPrompt ?? '';
+  const customDirty = draft?.custom_prompt !== undefined && (draft.custom_prompt as string) !== (selected.config?.customPrompt ?? '');
+
+  return (
+    <section className="studio-section">
+      <div className="studio-section-title">▸ 用户提示词（custom_prompt · prompt_sections）</div>
+      <div className="dim prompt-desc">
+        语言契约：用户段 VERBATIM 透传进系统提示词，内置段保持英文，用户段不过滤。留空则不出现在提示词中。
+      </div>
+      {SECTIONS.map((f) => (
+        <div key={f.key} className="prompt-sec">
+          <div className="prompt-sec-title">▶ {f.label}（{f.key}）</div>
+          <textarea
+            className="prompt-area"
+            rows={4}
+            placeholder={f.ph}
+            value={(draft?.prompt_sections as Record<string, unknown> | undefined)?.[f.key] as string | undefined
+              ?? (selected.config?.promptSections as Record<string, string> | undefined)?.[camelKey(f.key)] ?? ''}
+            onChange={(e) => setDraft((prev) => {
+              // 基础 = draft 内已编辑段 ∪ 已保存存量（camel 键转 snake 回填）。
+              // 保证 draft.prompt_sections 始终带全四段：MergeConfigInto 对
+              // prompt_sections 逐字段合并，但前端仍发全量（与 setKline 同模式，
+              // 防御未来后端改回整体替换导致未编辑段被清空）。
+              const base = { ...((prev?.prompt_sections as Record<string, unknown> | undefined) ?? {}) };
+              const stored = selected.config?.promptSections as Record<string, string> | undefined;
+              if (stored) {
+                for (const [k, v] of Object.entries(stored)) {
+                  const snake = k.replace(/[A-Z]/g, (ch) => `_${ch.toLowerCase()}`);
+                  if (!(snake in base)) base[snake] = v;
+                }
+              }
+              return {
+                ...(prev ?? {}),
+                prompt_sections: { ...base, [f.key]: e.target.value },
+              };
+            })}
+          />
+        </div>
+      ))}
+      <div className="prompt-sec-title prompt-sec-gap">▶ 补充指令（custom_prompt）</div>
+      <textarea
+        className="prompt-area"
+        rows={4}
+        placeholder="# 例如：优先选择 4h 周期突破形态的标的，避开消息面驱动的暴涨暴跌……"
+        value={customValue}
+        onChange={(e) => setDraft((prev) => ({ ...(prev ?? {}), custom_prompt: e.target.value }))}
+        onFocus={(e) => { if (e.target.value === (selected.config?.customPrompt ?? '')) setDraft((prev) => ({ ...(prev ?? {}), custom_prompt: e.target.value })); }}
+      />
+      <div className="prompt-foot">
+        <span className="mono dim">{customValue.length} chars · 中文/英文均可</span>
+        <span className="dim">
+          {customDirty
+            ? <span className="dirty-tag">● 已编辑，未保存</span>
+            : <span className="muted">未修改</span>}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/** ===== 右栏：K 线参数 + 技术指标 ===== */
+export function MarketColumn({ klineCfg, setKline, toggleTF, klineDirty, indicatorCfg, setIndicator }: {
+  klineCfg: Partial<KlineConfig> & { primaryTimeframe: string; primaryCount: number; enableMultiTimeframe: boolean; selectedTimeframes: string[] };
+  setKline: (patch: Partial<KlineConfig>) => void;
+  toggleTF: (tf: string) => void;
+  klineDirty: boolean;
+  indicatorCfg: Partial<IndicatorConfig> & { enableEma: boolean; emaPeriods: number[]; enableMacd: boolean; enableRsi: boolean; rsiPeriods: number[]; enableBoll: boolean; bollPeriods: number[] };
+  setIndicator: (patch: Partial<IndicatorConfig>) => void;
+}) {
+  return (
+    <div className="kline-ind-grid">
       {/* K 线参数 */}
       <section className="studio-section">
         <div className="studio-section-title">▸ K 线参数</div>
@@ -286,9 +286,11 @@ export function MarketColumn({ cs, setCs, csDirty, klineCfg, setKline, toggleTF,
           </span>
           {klineDirty && <span className="dirty-tag">● 已编辑，未保存</span>}
         </div>
+      </section>
 
-        {/* 技术指标 */}
-        <div className="prompt-sec-title prompt-sec-gap">▶ 技术指标（EMA / MACD / RSI / BOLL）</div>
+      {/* 技术指标 */}
+      <section className="studio-section">
+        <div className="studio-section-title">▸ 技术指标（EMA / MACD / RSI / BOLL）</div>
         <div className="field">
           <label className="checkbox-row">
             <input
@@ -371,7 +373,7 @@ export function MarketColumn({ cs, setCs, csDirty, klineCfg, setKline, toggleTF,
           )}
         </div>
       </section>
-    </>
+    </div>
   );
 }
 
