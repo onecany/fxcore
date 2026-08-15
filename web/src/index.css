@@ -1392,14 +1392,26 @@ button.chip:hover {
   .tm-grid-5, .tm-grid-7 { grid-template-columns: repeat(2, 1fr); }
 }
 
-.tm-card, .risk-card {
-  padding: 9px 12px;
-  background: var(--fxcore-panel-deep);
+.tm-card {
+  position: relative;
+  padding: 12px 14px;
+  background: linear-gradient(160deg, rgba(21, 31, 54, 0.6), rgba(10, 16, 30, 0.78));
   border: 1px solid var(--fxcore-panel-border);
-  border-radius: var(--fxcore-r-sm);
+  border-radius: var(--fxcore-r-md);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   transition: border-color 0.15s ease;
 }
-.tm-card:hover, .risk-card:hover { border-color: var(--fxcore-panel-border-strong); }
+.tm-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(240, 185, 11, 0.32), transparent);
+}
+.tm-card:hover { border-color: var(--fxcore-panel-border-strong); }
 .tm-card-label {
   font-family: var(--fxcore-font-mono);
   font-size: 9.5px;
@@ -2284,3 +2296,174 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   .cta-card { padding: 28px 18px; }
   .cta-title { font-size: 20px; }
 }
+
+/* ========== 交易终端激进版布局（仪表盘式） ========== */
+/* ① 交易员选择条（毛玻璃横条） */
+.dash-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+}
+.ts-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.ts-label {
+  font-family: var(--fxcore-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--fxcore-text-faint);
+}
+.tm-select {
+  padding: 6px 10px;
+  font-family: var(--fxcore-font-mono);
+  font-size: 12.5px;
+  color: var(--fxcore-text);
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+.tm-select:hover, .tm-select:focus { border-color: var(--fxcore-panel-border-strong); outline: none; }
+.dash-tb-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 12.5px;
+}
+.dash-tb-name { font-weight: 600; color: var(--fxcore-text); }
+.dash-tb-ex { color: var(--fxcore-text-dim); }
+.dash-tb-status {
+  font-family: var(--fxcore-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--fxcore-text-faint);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.dash-tb-status.ok { color: var(--fxcore-up); border-color: rgba(52, 211, 153, 0.35); background: rgba(52, 211, 153, 0.06); }
+.dash-tb-status.warn { color: var(--fxcore-warn); border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.06); }
+.dash-tb-cycle { color: var(--fxcore-text-dim); }
+.dash-tb-cycle b { color: var(--fxcore-accent); font-family: var(--fxcore-font-mono); }
+.dash-tb-cycle em { font-style: normal; color: var(--fxcore-text-faint); }
+.dash-tb-id { font-size: 11px; color: var(--fxcore-text-faint); }
+
+/* ③ KPI 主指标行（6 卡毛玻璃） */
+.dash-kpi {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (max-width: 1100px) { .dash-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .dash-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ④ 终端状态行（毛玻璃 mono 行） */
+.dash-status {
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  gap: 6px 14px;
+}
+.dash-status .tm-v { font-size: 12px; }
+
+/* ⑤ K 线行情面板（全宽，真实数据源链） */
+.kline-card { padding: 16px 18px 12px; margin-bottom: 14px; }
+.kline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+.kline-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.kline-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  font-family: var(--fxcore-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--fxcore-up);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 999px;
+  background: rgba(52, 211, 153, 0.07);
+}
+.kline-live .led {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+  animation: led-pulse 1.6s ease-in-out infinite;
+}
+.kline-intervals, .kline-symbols { display: flex; flex-wrap: wrap; gap: 6px; }
+.kline-symbols { margin-bottom: 10px; }
+.kline-chip {
+  padding: 3px 11px;
+  font-family: var(--fxcore-font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  color: var(--fxcore-text-dim);
+  background: transparent;
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.kline-chip:hover { color: var(--fxcore-text); border-color: var(--fxcore-panel-border-strong); }
+.kline-chip.active {
+  color: var(--fxcore-gold);
+  border-color: rgba(240, 185, 11, 0.5);
+  background: rgba(240, 185, 11, 0.08);
+}
+
+/* ⑥ 辅助列细节：权益元数据 / 风险状态卡 / 通用间距 */
+.dash-eq-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--fxcore-text-faint);
+}
+.dash-risk {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dash-risk-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--fxcore-panel-deep);
+  border: 1px solid var(--fxcore-panel-border);
+  border-radius: var(--fxcore-r-sm);
+}
+.dash-risk-label {
+  font-family: var(--fxcore-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--fxcore-text-faint);
+}
+.dash-risk-val { font-family: var(--fxcore-font-mono); font-size: 14px; font-weight: 600; color: var(--fxcore-text); }
+.dash-risk-sub { font-size: 9.5px; color: var(--fxcore-text-faint); }
+.dash-stack { display: flex; flex-direction: column; gap: 8px; }
+.empty-hint { font-size: 12px; padding: 4px 0; }
+.dash-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.dash-block { margin-top: 10px; }
+.dash-subhead { font-size: 10.5px; letter-spacing: 0.1em; margin-bottom: 4px; }
