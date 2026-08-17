@@ -27,15 +27,26 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="app-shell">
           <div className="panel" style={{ maxWidth: 620, margin: '10vh auto 0', padding: 24 }}>
-            <div className="panel-title">RUNTIME ERROR</div>
+            <div className="panel-title">页面出错了</div>
             <p className="dim" style={{ margin: '0 0 12px' }}>
-              页面渲染异常。错误信息（可反馈给维护者）：
+              页面加载遇到问题，已自动拦截。请尝试刷新；若持续出现，可把技术详情反馈给维护者。
             </p>
-            <pre className="terminal" style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', padding: 12 }}>
-              {this.state.error.message}
-              {'\n'}{this.state.error.stack ?? ''}
-            </pre>
-            <button className="btn primary" onClick={() => window.location.reload()}>⟳ 刷新重试</button>
+            <details style={{ marginBottom: 16 }}>
+              <summary className="dim" style={{ cursor: 'pointer', fontSize: 13 }}>
+                技术详情（反馈时提供）
+              </summary>
+              <pre
+                className="terminal"
+                style={{ fontSize: 12, overflow: 'auto', whiteSpace: 'pre-wrap', padding: 12 }}
+              >
+                {this.state.error.message}
+                {'\n'}
+                {this.state.error.stack ?? ''}
+              </pre>
+            </details>
+            <button className="btn primary" onClick={() => window.location.reload()}>
+              ⟳ 刷新重试
+            </button>
           </div>
         </div>
       );
