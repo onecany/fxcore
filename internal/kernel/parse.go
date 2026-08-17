@@ -38,7 +38,13 @@ func ParseDecision(raw string) ([]model.DecisionAction, error) {
 
 	var actions []model.DecisionAction
 	if err := json.Unmarshal([]byte(body), &actions); err != nil {
-		return nil, fmt.Errorf("kernel: invalid decision json: %w", err)
+		// 模型偶发输出单对象而非数组（如 {"action":"wait",...}）——归一化为数组
+		var single model.DecisionAction
+		if err2 := json.Unmarshal([]byte(body), &single); err2 == nil {
+			actions = []model.DecisionAction{single}
+		} else {
+			return nil, fmt.Errorf("kernel: invalid decision json: %w", err)
+		}
 	}
 	if len(actions) == 0 {
 		return nil, fmt.Errorf("kernel: empty decision array")
