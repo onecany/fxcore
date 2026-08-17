@@ -8,6 +8,7 @@ import { PageHead, Panel, Alert } from '../components/ui';
 import { TmCard } from '../sections/dashboard/primitives';
 import { ExchangeIcon } from '../components/exchange-icon';
 import { ExchangeSelect } from '../components/exchange-select';
+import { errMsg as toErrMsg } from '../utils/errorCodes';
 
 interface FormState {
   exchangeType: string;
@@ -97,7 +98,7 @@ export default function ExchangesPage() {
         title="交易所接入"
         lead={<>10 家统一适配层 · 凭据 RSA-OAEP 加密落库 · 响应零泄漏</>}
       />
-      {loadError && <Alert kind="error">{String(loadError)}</Alert>}
+      {loadError && <Alert kind="error">{toErrMsg(loadError)}</Alert>}
       {errMsg && <Alert kind="error">{errMsg}</Alert>}
       {okMsg && <Alert kind="ok">{okMsg}</Alert>}
 

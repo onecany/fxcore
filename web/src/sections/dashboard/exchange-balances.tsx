@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { listBalances, type ExchangeBalance } from '../../api/v1/modules/exchanges';
 import { ExchangeIcon } from '../../components/exchange-icon';
 import { Panel } from '../../components/ui';
+import { errMsg } from '../../utils/errorCodes';
 
 const fmtBal = (v: number | null): string => (v != null ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—');
 
@@ -21,7 +22,7 @@ export function ExchangeBalances() {
           <span className="dim">合计（USDT）</span>
           <span className="exb-total-val">{isLoading ? '…' : data.length > 0 ? fmtBal(total) : '—'}</span>
         </div>
-        {error && <div className="mono dim" style={{ fontSize: 11 }}>查询异常：{String(error)}</div>}
+        {error && <div className="mono dim" style={{ fontSize: 11 }}>查询异常：{errMsg(error)}</div>}
         {!error && data.length === 0 && !isLoading && <div className="muted mono" style={{ fontSize: 12 }}>// 无交易所账户</div>}
         {data.map((b) => (
           <div key={`${b.exchangeType}-${b.accountName}`} className="exb-item" title={b.error}>

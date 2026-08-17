@@ -9,6 +9,7 @@ import type { StrategyItem, CoinSourceConfig, AIModel, TestRunResult, KlineConfi
 import { PageHead, Alert, Terminal, Panel } from '../components/ui';
 import { ConfigColumn, PromptColumn, MarketColumn } from '../sections/strategies/editor-panels';
 import type { CsEditable } from '../sections/strategies/strategy-data';
+import { errMsg } from '../utils/errorCodes';
 
 export default function StrategiesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -238,7 +239,7 @@ export default function StrategiesPage() {
         title="策略内核"
         lead={<>策略工作室 · 双路径提示词 · 共享段 <code>writeCommonDiscipline</code></>}
       />
-      {error && <Alert kind="error">{error}</Alert>}
+      {error && <Alert kind="error">{errMsg(error)}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
       <div className="studio-grid">

@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import * as modelApi from '../api/v1/modules/models';
 import type { AIModel } from '../api/v1/types/contract';
 import { PageHead, Panel, Badge, Alert } from '../components/ui';
+import { errMsg } from '../utils/errorCodes';
 
 const fmtTime = (raw?: string): string => (raw ? new Date(raw).toLocaleString('zh-CN', { hour12: false }) : '-');
 const keyMask = (prefix?: string): string => prefix || '未配置';
@@ -116,8 +117,8 @@ export default function ModelsPage() {
   return (
     <section>
       <PageHead title="模型" lead={<>AI 模型配置 · API Key 经 RSA 加密落库，响应零泄漏 · 支持连通测试</>} />
-      {loadError && <Alert kind="error">{String(loadError)}</Alert>}
-      {error && <Alert kind="error">{error}</Alert>}
+      {loadError && <Alert kind="error">{errMsg(loadError)}</Alert>}
+      {error && <Alert kind="error">{errMsg(error)}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
       <div className="td-grid td-grid-2">

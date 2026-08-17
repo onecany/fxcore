@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { PageHead, Panel } from '../components/ui';
 import { fmtUsd, fmtPct, fmtDur } from '../utils/format';
+import { errMsg } from '../utils/errorCodes';
 import { useTraderTerminal, realizedOf, TABLE_PAGE_SIZE } from './dashboard/useTraderTerminal';
 import { UP, DOWN, TmCard, PhStat, CfgRow, EquityCurve, Pager } from './dashboard/primitives';
 import { DecisionCard, fmtClock, pnlColor, fmtSharpe } from './dashboard/exec-log';
@@ -78,7 +79,7 @@ export default function TraderDashboardSection() {
         title="交易终端"
         lead={<>交易员详情 · URL <code>?trader=</code> 直达 · 实时刷新</>}
       />
-      {error && <div className="alert error">{error}</div>}
+      {error && <div className="alert error">{errMsg(error)}</div>}
 
       {/* ① 交易员选择条：选择器 + 名称/交易所 + 状态 + cycle */}
       <div className="glass-card dash-topbar">

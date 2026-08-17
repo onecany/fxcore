@@ -5,6 +5,7 @@ import { listKlines } from '../../api/v1/modules/data';
 import KlineChart from '../../components/KlineChart';
 import { useT } from '../../stores/i18nStore';
 import type { KlineDTO } from '../../api/v1/types/contract';
+import { errMsg } from '../../utils/errorCodes';
 
 const INTERVALS = ['1m', '5m', '15m', '1h', '4h', '1d'] as const;
 const FALLBACK_COINS = ['BTC-USDT', 'ETH-USDT', 'SOL-USDT', 'BNB-USDT'];
@@ -60,7 +61,7 @@ export function KlinePanel({ coins }: { coins?: string[] }) {
           </button>
         ))}
       </div>
-      {error && <div className="alert error">{t.kline.fetchFailed}：{String(error)}</div>}
+      {error && <div className="alert error">{t.kline.fetchFailed}：{errMsg(error)}</div>}
       <div className="kline-panel">
         {isLoading && klines.length === 0 && <div className="kline-loading">{t.kline.loading}</div>}
         {klines.length > 0 ? (

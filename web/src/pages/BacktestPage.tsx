@@ -9,6 +9,7 @@ import { PageHead, Panel, Badge, Alert } from '../components/ui';
 import KlineChart from '../components/KlineChart';
 import { useT } from '../stores/i18nStore';
 import { fmtTime } from '../utils/format';
+import { errMsg } from '../utils/errorCodes';
 
 const FILL_OPTIONS = [
   { value: 'next_open', label: 'next_open · 下一根开盘价' },
@@ -154,7 +155,7 @@ export default function BacktestPage() {
         title="回放引擎"
         lead={<>历史行情回放 · 实时 K 线 · 进度与权益跟踪</>}
       />
-      {error && <Alert kind="error">{error}</Alert>}
+      {error && <Alert kind="error">{errMsg(error)}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
       {/* KPI 概览（毛玻璃） */}
@@ -268,7 +269,7 @@ export default function BacktestPage() {
             </div>
           )}
         </form>
-        {klineError && <Alert kind="error">{t.kline.fetchFailed}：{klineError}</Alert>}
+        {klineError && <Alert kind="error">{t.kline.fetchFailed}：{errMsg(klineError)}</Alert>}
         <div className="kline-panel">
           {klineLoading && <div className="kline-loading">{t.kline.loading}</div>}
           {klines.length > 0 ? (

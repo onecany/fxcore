@@ -7,6 +7,7 @@ import * as strategyApi from '../api/v1/modules/strategies';
 import * as modelApi from '../api/v1/modules/models';
 import type { DebateSession, DebateStatus, StrategyItem } from '../api/v1/types/contract';
 import { PageHead, Panel, Badge, Alert, Terminal } from '../components/ui';
+import { errMsg } from '../utils/errorCodes';
 
 interface StreamEvent { type: string; data: unknown; }
 
@@ -187,8 +188,8 @@ export default function DebatePage() {
         title="辩论竞技场"
         lead={<>多模型观点碰撞 · 轮次推进 · 共识决策</>}
       />
-      {loadError && <Alert kind="error">{String(loadError)}</Alert>}
-      {error && <Alert kind="error">{error}</Alert>}
+      {loadError && <Alert kind="error">{errMsg(loadError)}</Alert>}
+      {error && <Alert kind="error">{errMsg(error)}</Alert>}
       {msg && <Alert kind="ok">{msg}</Alert>}
 
       {/* KPI 概览（毛玻璃） */}

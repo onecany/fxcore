@@ -10,6 +10,7 @@ import { PageHead } from '../components/ui';
 import * as modelApi from '../api/v1/modules/models';
 import * as exchangeApi from '../api/v1/modules/exchanges';
 import type { TraderResponse, AIModel, ExchangeAccount } from '../api/v1/types/contract';
+import { errMsg } from '../utils/errorCodes';
 import { ResourceSidebar } from './traders/ResourceSidebar';
 import { TraderGrid } from './traders/TraderGrid';
 import { InspectorPanel } from './traders/InspectorPanel';
@@ -73,7 +74,7 @@ export default function TradersSection({ onNavigate }: { onNavigate: (tab: 'mode
         <SummaryCell label="STOPPED" value={stoppedCount} tone="dim" />
       </div>
 
-      {error && <div className="alert error">错误：{String(error)}</div>}
+      {error && <div className="alert error">错误：{errMsg(error)}</div>}
       {isLoading && <div className="muted mono">· 加载中…</div>}
 
       {/* 顶部快捷按钮组（MODELS_CONFIG / EXCHANGE_KEYS / Create Trader） */}
