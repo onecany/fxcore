@@ -5,6 +5,8 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocati
 import { useAuth } from './hooks/useAuth';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import ExchangesPage from './pages/ExchangesPage';
 import TraderDashboardSection from './sections/TraderDashboardSection';
 import ModelsPage from './pages/ModelsPage';
@@ -112,6 +114,8 @@ function AuthGate() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
     );

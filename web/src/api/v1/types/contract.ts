@@ -40,6 +40,9 @@ export interface LoginResponse {
 }
 export interface RefreshRequest { refreshToken: string; }
 export interface User { id: string; email: string; nickname: string; avatar?: string; }
+/** 忘记密码响应：dev_link 仅 SMTP 未配置的 dev 模式返回（无邮件服务器时联调便利） */
+export interface ForgotPasswordResponse { message: string; devLink?: string; }
+export interface ResetPasswordResponse { message: string; }
 
 // ========== AI模型管理（全面增强） ==========
 export type AIProvider = 'deepseek' | 'qwen' | 'claude' | 'gpt' | 'gemini' | 'custom';

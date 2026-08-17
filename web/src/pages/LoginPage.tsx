@@ -124,6 +124,13 @@ export default function LoginPage() {
             <button className="btn primary auth-submit" type="submit" disabled={busy}>
               {busy ? t.auth.busy : authMode === 'login' ? t.auth.login : t.auth.create}
             </button>
+            {authMode === 'login' && (
+              <div className="auth-link-row">
+                <button type="button" className="link-btn" onClick={() => navigate('/forgot-password')}>
+                  {t.auth.forgot}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>
