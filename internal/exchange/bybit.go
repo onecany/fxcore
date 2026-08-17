@@ -424,9 +424,11 @@ func (a *BybitAdapter) qtyStep(ctx context.Context, symbol string) (float64, err
 // ========== 签名与请求 ==========
 
 // sign 签名：HMAC-SHA256(timestamp+recvWindow+body)。
-func (a *BybitAdapter) sign(timestamp, recvWindow, body string) string {
+// sign 签名：hex(HMAC-SHA256(timestamp+api_key+recv_window+content))，
+// content = GET 的 query string 或 POST 的 raw body（Bybit v5 官方规范）。
+func (a *BybitAdapter) sign(timestamp, apiKey, recvWindow, content string) string {
 	mac := hmac.New(sha256.New, []byte(a.creds.SecretKey))
-	_, _ = mac.Write([]byte(timestamp + recvWindow + body))
+	_, _ = mac.Write([]byte(timestamp + apiKey + recvWindow + content))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -438,7 +440,7 @@ func (a *BybitAdapter) post(ctx context.Context, path string, payload map[string
 	}
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	recv := "5000"
-	sig := a.sign(ts, recv, string(body))
+	sig := a.sign(ts, a.creds.APIKey, recv, string(body))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.base+path, strings.NewReader(string(body)))
 	if err != nil {
@@ -465,17 +467,18 @@ func (a *BybitAdapter) post(ctx context.Context, path string, payload map[string
 	return json.Unmarshal(raw, out)
 }
 
-// get 带签名 GET。
+// get 带签名 GET。签名串 content 为请求的 query string（不含 recvWindow，
+// recvWindow 在签名串中是独立中间段，URL 上不追加）。
 func (a *BybitAdapter) get(ctx context.Context, path string, out any) error {
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	recv := "5000"
-	sig := a.sign(ts, recv, "")
-
-	sep := "?"
-	if strings.Contains(path, "?") {
-		sep = "&"
+	query := ""
+	if i := strings.Index(path, "?"); i >= 0 {
+		query = path[i+1:]
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.base+path+sep+"recvWindow="+recv, nil)
+	sig := a.sign(ts, a.creds.APIKey, recv, query)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.base+path, nil)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrConn, err)
 	}
