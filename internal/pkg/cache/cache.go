@@ -26,35 +26,93 @@ type TokenStore interface {
 	Rotate(ctx context.Context, oldToken, newToken string, ttl time.Duration) (userID string, ok bool, err error)
 }
 
-// NewTokenStore 构造：优先 Redis，失败降级内存。
+// NewTokenStore 构造 refresh token 存储：优先 Redis，失败降级内存。
+// 命名空间 fx:refresh:——与密码重置令牌（fx:reset:）物理隔离，
+// 防止重置令牌被 /auth/refresh 的 Rotate 当作 refresh token 消费（安全隔离）。
 func NewTokenStore(redisURL string) TokenStore {
+	return newKVTokenStore(redisURL, "fx:refresh:")
+}
+
+// ResetStore 密码重置令牌存储（一次性：Get 命中后成功重置即 Del）。
+// 独立于 TokenStore 命名空间，杜绝跨用途消费（见 NewTokenStore 注释）。
+type ResetStore interface {
+	Set(ctx context.Context, token, userID string, ttl time.Duration) error
+	Get(ctx context.Context, token string) (string, bool)
+	Del(ctx context.Context, token string) error
+}
+
+// NewResetStore 构造密码重置令牌存储（前缀 fx:reset:）。
+func NewResetStore(redisURL string) ResetStore {
+	return newKVTokenStore(redisURL, "fx:reset:")
+}
+
+// ---- 通用命名空间实现（refresh / password reset 共用） ----
+
+// kvTokenStore 命名空间化的 token 存储：Redis 或内存，键统一带前缀。
+// 同时实现 TokenStore（含 Rotate）与 ResetStore（Set/Get/Del）。
+type kvTokenStore struct {
+	prefix string
+	rdb    *redis.Client
+	mu     sync.Mutex
+	items  map[string]memToken
+}
+
+func newKVTokenStore(redisURL, prefix string) *kvTokenStore {
 	if c := dialRedis(redisURL); c != nil {
-		return &redisTokenStore{rdb: c}
+		return &kvTokenStore{prefix: prefix, rdb: c}
 	}
-	log.Println("[cache] token store: in-memory fallback (set REDIS_URL for multi-instance)")
-	return &memTokenStore{items: map[string]memToken{}}
+	log.Printf("[cache] token store: in-memory fallback (set REDIS_URL for multi-instance)")
+	return &kvTokenStore{prefix: prefix, items: map[string]memToken{}}
 }
 
-// ---- Redis 实现 ----
-
-type redisTokenStore struct {
-	rdb *redis.Client
+func (s *kvTokenStore) Set(ctx context.Context, token, userID string, ttl time.Duration) error {
+	if s.rdb != nil {
+		return s.rdb.Set(ctx, s.prefix+token, userID, ttl).Err()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// L5：防无界增长——超阈值时清理过期条目（过期后通常不再被访问，惰性清理回收不了）
+	if len(s.items) > maxMemKeys {
+		now := time.Now()
+		for k, t := range s.items {
+			if now.After(t.exp) {
+				delete(s.items, k)
+			}
+		}
+	}
+	s.items[token] = memToken{userID: userID, exp: time.Now().Add(ttl)}
+	return nil
 }
 
-func (s *redisTokenStore) Set(ctx context.Context, token, userID string, ttl time.Duration) error {
-	return s.rdb.Set(ctx, "fx:refresh:"+token, userID, ttl).Err()
-}
-
-func (s *redisTokenStore) Get(ctx context.Context, token string) (string, bool) {
-	v, err := s.rdb.Get(ctx, "fx:refresh:"+token).Result()
-	if err != nil {
+func (s *kvTokenStore) Get(ctx context.Context, token string) (string, bool) {
+	if s.rdb != nil {
+		v, err := s.rdb.Get(ctx, s.prefix+token).Result()
+		if err != nil {
+			return "", false
+		}
+		return v, true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.items[token]
+	if !ok {
 		return "", false
 	}
-	return v, true
+	if time.Now().After(t.exp) {
+		delete(s.items, token)
+		return "", false
+	}
+	return t.userID, true
 }
 
-func (s *redisTokenStore) Del(ctx context.Context, token string) error {
-	return s.rdb.Del(ctx, "fx:refresh:"+token).Err()
+func (s *kvTokenStore) Del(ctx context.Context, token string) error {
+	if s.rdb != nil {
+		return s.rdb.Del(ctx, s.prefix+token).Err()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.items, token)
+	return nil
 }
 
 // rotateScript 原子轮换：GET 校验 + DEL + SET 一步完成（Redis 单线程保证原子性），
@@ -69,73 +127,23 @@ end
 return false
 `
 
-func (s *redisTokenStore) Rotate(ctx context.Context, oldToken, newToken string, ttl time.Duration) (string, bool, error) {
-	r := s.rdb.Eval(ctx, rotateScript,
-		[]string{"fx:refresh:" + oldToken, "fx:refresh:" + newToken},
-		int(ttl.Seconds()))
-	if r.Err() != nil {
-		return "", false, r.Err()
-	}
-	v, err := r.Text()
-	if err != nil {
-		if err == redis.Nil {
-			return "", false, nil
+func (s *kvTokenStore) Rotate(ctx context.Context, oldToken, newToken string, ttl time.Duration) (string, bool, error) {
+	if s.rdb != nil {
+		r := s.rdb.Eval(ctx, rotateScript,
+			[]string{s.prefix + oldToken, s.prefix + newToken},
+			int(ttl.Seconds()))
+		if r.Err() != nil {
+			return "", false, r.Err()
 		}
-		return "", false, err
-	}
-	return v, true, nil
-}
-
-// ---- 内存实现 ----
-
-type memToken struct {
-	userID string
-	exp    time.Time
-}
-
-type memTokenStore struct {
-	mu    sync.Mutex
-	items map[string]memToken
-}
-
-func (s *memTokenStore) Set(_ context.Context, token, userID string, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// L5：防无界增长——超阈值时清理过期条目（refresh token 过期后通常不再被访问，惰性清理回收不了）
-	if len(s.items) > maxMemKeys {
-		now := time.Now()
-		for k, t := range s.items {
-			if now.After(t.exp) {
-				delete(s.items, k)
+		v, err := r.Text()
+		if err != nil {
+			if err == redis.Nil {
+				return "", false, nil
 			}
+			return "", false, err
 		}
+		return v, true, nil
 	}
-	s.items[token] = memToken{userID: userID, exp: time.Now().Add(ttl)}
-	return nil
-}
-
-func (s *memTokenStore) Get(_ context.Context, token string) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := s.items[token]
-	if !ok {
-		return "", false
-	}
-	if time.Now().After(t.exp) {
-		delete(s.items, token)
-		return "", false
-	}
-	return t.userID, true
-}
-
-func (s *memTokenStore) Del(_ context.Context, token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.items, token)
-	return nil
-}
-
-func (s *memTokenStore) Rotate(_ context.Context, oldToken, newToken string, ttl time.Duration) (string, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok := s.items[oldToken]
@@ -145,6 +153,13 @@ func (s *memTokenStore) Rotate(_ context.Context, oldToken, newToken string, ttl
 	delete(s.items, oldToken)
 	s.items[newToken] = memToken{userID: t.userID, exp: time.Now().Add(ttl)}
 	return t.userID, true, nil
+}
+
+// ---- 内存辅助类型 ----
+
+type memToken struct {
+	userID string
+	exp    time.Time
 }
 
 // ========== RateLimiter（滑动窗口，文档 6.3） ==========
