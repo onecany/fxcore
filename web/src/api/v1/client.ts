@@ -198,7 +198,22 @@ instance.interceptors.response.use(
   async (error: AxiosError<ApiResponse<unknown>>) => {
     const status = error.response?.status;
     const code = error.response?.data?.code;
-    const message = error.response?.data?.message || getErrorMessage(code ?? -1, error.message);
+    // 网络层兜底（后端服务不可用/断网/超时/网关错误）：
+    // 给用户友好中文消息，不把 "Network Error" 等原始英文错误抛到页面。
+    // 有后端信封（含 code 字段）的 5xx（如 1301/1302）仍保留后端 message。
+    const hasEnvelope =
+      error.response?.data && typeof (error.response.data as ApiResponse<unknown> | undefined)?.code === 'number';
+    let message: string;
+    if (!error.response) {
+      message =
+        error.code === 'ECONNABORTED'
+          ? '请求超时，请检查网络后重试'
+          : '无法连接服务器，请检查网络或稍后重试';
+    } else if (status && status >= 500 && !hasEnvelope) {
+      message = '服务器暂时不可用，请稍后重试';
+    } else {
+      message = error.response?.data?.message || getErrorMessage(code ?? -1, error.message);
+    }
     // L7：错误信封与成功信封统一 request_id（原始 snake_case 字段，绕过类型声明的 requestId）
     const rawBody = error.response?.data as (ApiResponse<unknown> & { request_id?: string }) | undefined;
     const requestId = rawBody?.request_id;
