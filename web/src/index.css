@@ -3273,3 +3273,54 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
   min-width: 44px;
   text-align: center;
 }
+
+/* 法律条款页（/privacy /terms /cookies，公共路由） */
+.legal-page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px 56px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.legal-container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 5vh 0 6vh;
+  width: 100%;
+}
+.legal-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--fxcore-text);
+  margin: 0 0 6px;
+}
+.legal-updated {
+  font-size: 12.5px;
+  color: var(--fxcore-text-dim);
+  border-bottom: 1px solid var(--fxcore-panel-border);
+  padding-bottom: 18px;
+  margin: 0 0 8px;
+}
+.legal-section {
+  padding: 18px 0 4px;
+}
+.legal-h2 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--fxcore-accent);
+  margin: 0 0 8px;
+  letter-spacing: 0.02em;
+}
+.legal-p {
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--fxcore-text);
+  margin: 0 0 10px;
+}
+.legal-page .footer { margin-top: auto; }
+@media (max-width: 640px) {
+  .legal-page { padding: 0 14px 40px; }
+  .legal-title { font-size: 24px; }
+}

@@ -4,6 +4,7 @@ import { useT } from '../stores/i18nStore';
 const PRODUCT_HREFS = ['/dashboard', '/traders', '/strategies', '/backtest', '/debate'];
 const PLATFORM_HREFS = ['#markets', '#features', '#security', '#cta'];
 const DOCS_HREFS = ['/swagger', '#', '#'];
+const LEGAL_HREFS = ['/privacy', '/terms', '/cookies'];
 
 export function Footer() {
   const t = useT();
@@ -13,7 +14,7 @@ export function Footer() {
     { title: f.colProducts, items: f.products, hrefs: PRODUCT_HREFS },
     { title: f.colPlatform, items: f.platform, hrefs: PLATFORM_HREFS },
     { title: f.colDocs, items: f.docs, hrefs: DOCS_HREFS },
-    { title: f.colLegal, items: f.legal, hrefs: ['#', '#', '#'] },
+    { title: f.colLegal, items: f.legal, hrefs: LEGAL_HREFS },
   ];
 
   return (

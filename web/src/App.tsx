@@ -7,6 +7,9 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import CookiePage from './pages/CookiePage';
 import ExchangesPage from './pages/ExchangesPage';
 import TraderDashboardSection from './sections/TraderDashboardSection';
 import ModelsPage from './pages/ModelsPage';
@@ -109,6 +112,12 @@ function TradersRoute() {
 function AuthGate() {
   const { user } = useAuth();
   const location = useLocation();
+  // 法律条款页公共可访问（登录/未登录一致，不经过 Shell）
+  const legalPage =
+    location.pathname === '/privacy' ? <PrivacyPage /> :
+    location.pathname === '/terms' ? <TermsPage /> :
+    location.pathname === '/cookies' ? <CookiePage /> : null;
+  if (legalPage) return legalPage;
   // 未登录：/login 登录页，其余路径统一落地页（未登录访问业务路由也回到首页）
   if (!user) {
     return (
