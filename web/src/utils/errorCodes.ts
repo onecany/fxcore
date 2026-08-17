@@ -65,3 +65,20 @@ export function getErrorMessage(code: number, fallback = '请求失败'): string
 export function getErrorAction(code: number): string | undefined {
   return ERROR_META[code]?.action;
 }
+
+/**
+ * 统一错误转用户可读消息（异常兜底）：
+ * - Error/AppError → message（剥掉 "Error: " 前缀）
+ * - 字符串 → 原样（同样剥前缀）
+ * - 其他/空 → 通用兜底文案
+ * 用于页面 alert 渲染，避免把 Error 对象或英文技术错误直接抛给用户。
+ */
+export function errMsg(e: unknown): string {
+  if (e instanceof Error && e.message) {
+    return e.message.replace(/^Error:\s*/i, '');
+  }
+  if (typeof e === 'string' && e.trim()) {
+    return e.replace(/^Error:\s*/i, '');
+  }
+  return '操作失败，请稍后重试';
+}
