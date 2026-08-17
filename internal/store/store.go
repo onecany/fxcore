@@ -240,6 +240,40 @@ func (s *Store) GetUserByID(id string) (*model.User, bool) {
 	return &cp, true
 }
 
+// UpdateUserPassword 更新用户密码哈希（忘记密码重置）。
+// DB 与内存镜像双写（写方法双路径铁律：落库后同步 map）。
+func (s *Store) UpdateUserPassword(userID, passwordHash string) error {
+	now := time.Now().UTC()
+	if s.db != nil {
+		res := s.db.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{
+			"password_hash": passwordHash,
+			"updated_at":    now,
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("user not found")
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if u, ok := s.users[userID]; ok {
+			u.PasswordHash = passwordHash
+			u.UpdatedAt = now
+		}
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	u, ok := s.users[userID]
+	if !ok {
+		return errors.New("user not found")
+	}
+	u.PasswordHash = passwordHash
+	u.UpdatedAt = now
+	return nil
+}
+
 // ========== AI 模型 ==========
 
 // CreateModel 创建模型（APIKeyEnc 已加密）。

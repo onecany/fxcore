@@ -24,6 +24,12 @@
 //	TLS_KEY_FILE       TLS 私钥 PEM 路径
 //	LOG_DIR            日志目录（默认 "logs"；设空串禁用文件日志，仅终端输出）
 //	ENV_FILE           .env 文件路径（默认 .env）
+//	SMTP_HOST          SMTP 服务器（配置后启用忘记密码邮件；空 = dev 模式，重置链接写日志 + 响应返回）
+//	SMTP_PORT          SMTP 端口（默认 587）
+//	SMTP_USER          SMTP 认证用户（空 = 无认证）
+//	SMTP_PASS          SMTP 认证密码
+//	SMTP_FROM          邮件发件人地址（空 = 取 SMTP_USER）
+//	FRONTEND_BASE_URL  前端地址，用于拼密码重置链接（默认 http://localhost:5173）
 package main
 
 import (
@@ -35,6 +41,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -52,6 +59,7 @@ import (
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
 	"fxcore/internal/pkg/logger"
+	"fxcore/internal/pkg/mail"
 	"fxcore/internal/provider"
 	"fxcore/internal/store"
 	"fxcore/internal/trader/engine"
@@ -132,6 +140,21 @@ func main() {
 	// Redis（可选，降级内存）
 	redisURL := os.Getenv("REDIS_URL")
 
+	// SMTP 邮件（忘记密码；未配置 = dev 模式，重置链接写日志 + 响应返回）
+	smtpPort := 587
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		if p, err := strconv.Atoi(v); err == nil && p > 0 {
+			smtpPort = p
+		}
+	}
+	mailer := mail.New(mail.Config{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     smtpPort,
+		Username: os.Getenv("SMTP_USER"),
+		Password: os.Getenv("SMTP_PASS"),
+		From:     os.Getenv("SMTP_FROM"),
+	})
+
 	// 统一 AI 客户端（backtest/debate/交易引擎共用；决策调用可能 60s+）
 	ai := llm.New(90 * time.Second)
 
@@ -175,6 +198,9 @@ func main() {
 		Store:        st,
 		JWT:          jm,
 		Tokens:       cache.NewTokenStore(redisURL),
+		Resets:       cache.NewResetStore(redisURL),
+		Mailer:       mailer,
+		FrontendBase: getenv("FRONTEND_BASE_URL", "http://localhost:5173"),
 		Limiter:      cache.NewRateLimiter(redisURL),
 		Nonces:       cache.NewNonceCache(redisURL),
 		KeyManager:   km,

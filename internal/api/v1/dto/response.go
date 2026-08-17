@@ -89,6 +89,19 @@ type RefreshResponse struct {
 	SignSecret   string `json:"sign_secret,omitempty"`
 }
 
+// ForgotPasswordResponse 忘记密码响应。
+// 防枚举：邮箱不存在时同样返回 200 + 通用 message（无 dev_link）。
+// dev_link 仅 SMTP 未配置的 dev 模式返回（无邮件服务器时的联调便利）。
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
+	DevLink string `json:"dev_link,omitempty"`
+}
+
+// ResetPasswordResponse 重置密码响应。
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+}
+
 // ========== AI 模型模块 ==========
 
 // AIModelDTO 模型列表项（api_key 永不出现在响应中）。

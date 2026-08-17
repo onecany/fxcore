@@ -59,6 +59,18 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// ForgotPasswordRequest 忘记密码请求（发送重置邮件）。
+// 响应不做存在性区分（防用户枚举）：无论邮箱是否注册都返回通用成功文案。
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email,max=255"`
+}
+
+// ResetPasswordRequest 重置密码请求。
+type ResetPasswordRequest struct {
+	Token    string `json:"token" binding:"required,max=128"` // 邮件重置链接中的一次性令牌
+	Password string `json:"password" binding:"required,min=8,max=128"`
+}
+
 // ========== AI 模型模块 ==========
 
 // CreateModelRequest 创建/更新 AI 模型。api_key 后端 RSA 加密后落库。

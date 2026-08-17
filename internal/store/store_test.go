@@ -76,3 +76,30 @@ func TestCreateAndTransitionConcurrent(t *testing.T) {
 	}
 	<-done
 }
+
+// 忘记密码重置：UpdateUserPassword 更新哈希 + 不存在的用户报错。
+func TestUpdateUserPassword(t *testing.T) {
+	s, err := New(Config{AdminEmail: "a@b.c", AdminPassword: "x", AdminSignSecret: "s"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.CreateUser(&model.User{ID: "u1", Email: "u@b.c", PasswordHash: "old-hash"})
+
+	if err := s.UpdateUserPassword("u1", "new-hash"); err != nil {
+		t.Fatalf("UpdateUserPassword: %v", err)
+	}
+	u, ok := s.GetUserByID("u1")
+	if !ok {
+		t.Fatalf("user gone after update")
+	}
+	if u.PasswordHash != "new-hash" {
+		t.Fatalf("password hash want new-hash, got %q", u.PasswordHash)
+	}
+	if u.UpdatedAt.IsZero() {
+		t.Fatalf("updated_at must be set")
+	}
+
+	if err := s.UpdateUserPassword("missing-id", "x"); err == nil {
+		t.Fatalf("update non-existent user must error")
+	}
+}

@@ -22,6 +22,7 @@ import (
 	"fxcore/internal/pkg/cache"
 	"fxcore/internal/pkg/crypto"
 	"fxcore/internal/pkg/jwt"
+	"fxcore/internal/pkg/mail"
 	"fxcore/internal/provider"
 	"fxcore/internal/store"
 	"fxcore/internal/trader/engine"
@@ -32,6 +33,9 @@ type Deps struct {
 	Store        *store.Store
 	JWT          *jwt.Manager
 	Tokens       cache.TokenStore
+	Resets       cache.ResetStore     // 密码重置令牌（独立命名空间，见 cache.NewResetStore）
+	Mailer       *mail.Mailer         // SMTP 邮件器（nil/未配置 = dev 模式：重置链接写日志 + 响应返回）
+	FrontendBase string               // 前端地址，用于拼密码重置链接（FRONTEND_BASE_URL）
 	Limiter      cache.RateLimiter
 	Nonces       cache.NonceCache
 	KeyManager   *crypto.KeyManager
@@ -119,11 +123,13 @@ func NewRouter(d Deps) *gin.Engine {
 		})
 
 		// --- 认证（auth 限流：5 次/分钟/IP） ---
-		authH := handler.NewAuthHandler(d.Store, d.JWT, d.Tokens, d.AccessTTL)
+		authH := handler.NewAuthHandler(d.Store, d.JWT, d.Tokens, d.Resets, d.Mailer, d.FrontendBase, d.AccessTTL)
 		auth := api.Group("/auth", middleware.RateLimit(d.Limiter, "auth"))
 		{
 			auth.POST("/login", authH.Login)
 			auth.POST("/register", authH.Register)
+			auth.POST("/forgot-password", authH.ForgotPassword)
+			auth.POST("/reset-password", authH.ResetPassword)
 			auth.POST("/logout", authH.Logout)
 		}
 		// refresh 独立配额（L11：多标签页 15min 并发刷新不应撞 auth 的 5/min/IP 防爆破配额被误登出）

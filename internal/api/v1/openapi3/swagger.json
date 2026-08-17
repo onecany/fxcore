@@ -644,6 +644,104 @@
                 ],
                 "type": "object"
             },
+            "fxcore_internal_api_v1_dto.ResetPasswordRequest": {
+                "properties": {
+                    "password": {
+                        "maxLength": 128,
+                        "minLength": 8,
+                        "type": "string"
+                    },
+                    "token": {
+                        "description": "邮件重置链接中的一次性令牌",
+                        "maxLength": 128,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "token",
+                    "password"
+                ],
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.ResetPasswordResponse": {
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.ApiResponse-fxcore_internal_api_v1_dto_ForgotPasswordResponse": {
+                "properties": {
+                    "code": {
+                        "description": "业务码，见 internal/middleware/error.go 矩阵",
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ForgotPasswordResponse"
+                    },
+                    "message": {
+                        "description": "人类可读消息",
+                        "type": "string"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    },
+                    "timestamp": {
+                        "description": "unix 毫秒",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.ApiResponse-fxcore_internal_api_v1_dto_ResetPasswordResponse": {
+                "properties": {
+                    "code": {
+                        "description": "业务码，见 internal/middleware/error.go 矩阵",
+                        "type": "integer"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ResetPasswordResponse"
+                    },
+                    "message": {
+                        "description": "人类可读消息",
+                        "type": "string"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    },
+                    "timestamp": {
+                        "description": "unix 毫秒",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.ForgotPasswordRequest": {
+                "properties": {
+                    "email": {
+                        "format": "email",
+                        "maxLength": 255,
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "email"
+                ],
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.ForgotPasswordResponse": {
+                "properties": {
+                    "dev_link": {
+                        "description": "仅 SMTP 未配置的 dev 模式返回",
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "fxcore_internal_api_v1_dto.RefreshResponse": {
                 "description": "业务数据",
                 "properties": {
@@ -946,6 +1044,128 @@
                     }
                 },
                 "summary": "登出",
+                "tags": [
+                    "auth"
+                ]
+            }
+        },
+        "/auth/forgot-password": {
+            "post": {
+                "description": "向注册邮箱发送密码重置链接；邮箱不存在时同样返回成功（防枚举）。SMTP 未配置时为 dev 模式：链接写日志并随响应 dev_link 返回",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ForgotPasswordRequest",
+                                        "summary": "body",
+                                        "description": "注册邮箱"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "注册邮箱",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ApiResponse-fxcore_internal_api_v1_dto_ForgotPasswordResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "1001 参数错误"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "1005 限流（5 次/分钟/IP）"
+                    }
+                },
+                "summary": "忘记密码",
+                "tags": [
+                    "auth"
+                ]
+            }
+        },
+        "/auth/reset-password": {
+            "post": {
+                "description": "携带邮件链接中的一次性令牌设置新密码；成功后令牌立即作废",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ResetPasswordRequest",
+                                        "summary": "body",
+                                        "description": "重置令牌 + 新密码（≥8 位）"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "重置令牌 + 新密码（≥8 位）",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ApiResponse-fxcore_internal_api_v1_dto_ResetPasswordResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "1001 参数错误 / 令牌无效或已过期"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "1005 限流（5 次/分钟/IP）"
+                    }
+                },
+                "summary": "重置密码",
                 "tags": [
                     "auth"
                 ]
