@@ -1,6 +1,9 @@
 package exchange
 
 import (
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -61,13 +64,15 @@ func TestBitgetVolumePlace(t *testing.T) {
 	}
 }
 
-// TestGateSignedHeaders 验证 KEY/SIGN/Timestamp 三头。
+// TestGateSignedHeaders 验证 KEY/SIGN/Timestamp 三头 + 签名串 5 行（含 timestamp）。
 func TestGateSignedHeaders(t *testing.T) {
 	var gotSig, gotTs, gotKey string
+	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSig = r.Header.Get("SIGN")
 		gotTs = r.Header.Get("Timestamp")
 		gotKey = r.Header.Get("KEY")
+		gotBody = readAllBody(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":123,"status":"open","size":10,"left":10,"fill_price":"0"}`))
 	}))
@@ -87,6 +92,19 @@ func TestGateSignedHeaders(t *testing.T) {
 	if gotKey != "k" || gotTs == "" || gotSig == "" {
 		t.Errorf("headers missing: key=%s ts=%s sig=%s", gotKey, gotTs, gotSig)
 	}
+	// 官方规范：签名串 = METHOD\nURL\nQUERY\nHEX(SHA512(body))\nTIMESTAMP（5 行，含 timestamp）
+	want := gateSignRecompute("s", "POST", "/api/v4/futures/usdt/orders", "", gotBody, gotTs)
+	if gotSig != want {
+		t.Errorf("SIGN mismatch (must include timestamp row): got %s want %s", gotSig, want)
+	}
+}
+
+// gateSignRecompute 按 Gate 官方规范重算签名。
+func gateSignRecompute(secret, method, path, query, body, ts string) string {
+	hash := sha512.Sum512([]byte(body))
+	mac := hmac.New(sha512.New, []byte(secret))
+	_, _ = mac.Write([]byte(strings.Join([]string{method, path, query, hex.EncodeToString(hash[:]), ts}, "\n")))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // TestGateSizeSign 正负 size 表示方向（开多正、开空负）。
@@ -131,14 +149,16 @@ func TestGateReduceOnly(t *testing.T) {
 	}
 }
 
-// TestKuCoinSignedHeaders 验证 KC-API-* 四头。
+// TestKuCoinSignedHeaders 验证 KC-API-* 四头 + 签名可复算（含完整 requestPath）。
 func TestKuCoinSignedHeaders(t *testing.T) {
 	var gotSig, gotTs, gotKey, gotPass string
+	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSig = r.Header.Get("KC-API-SIGN")
 		gotTs = r.Header.Get("KC-API-TIMESTAMP")
 		gotKey = r.Header.Get("KC-API-KEY")
 		gotPass = r.Header.Get("KC-API-PASSPHRASE")
+		gotBody = readAllBody(r)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "contracts"):
@@ -164,6 +184,11 @@ func TestKuCoinSignedHeaders(t *testing.T) {
 	}
 	if gotKey != "k" || gotPass != "pp" || gotTs == "" || gotSig == "" {
 		t.Errorf("headers missing: key=%s pass=%s ts=%s sig=%s", gotKey, gotPass, gotTs, gotSig)
+	}
+	// 签名 = Base64(HMAC-SHA256(ts + method + requestPath含query + body))（官方规范）
+	want := hmacSHA256B64("s", gotTs+"POST"+"/api/v1/orders"+gotBody)
+	if gotSig != want {
+		t.Errorf("KC-API-SIGN mismatch: got %s want %s", gotSig, want)
 	}
 }
 

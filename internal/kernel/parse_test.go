@@ -55,6 +55,27 @@ func TestParseDecisionMissingSymbol(t *testing.T) {
 	}
 }
 
+func TestParseDecisionSingleObject(t *testing.T) {
+	// 模型偶发输出单对象而非数组（生产实锤：12:22 记录 kernel: invalid decision json）——
+	// 应归一化为数组而非解析失败。
+	raw := `<decision>{"action": "wait", "symbol": "BTC-USDT", "quantity": 0, "leverage": 10, "stop_loss": 0, "take_profit": 0, "confidence": 0, "risk_usd": 0}</decision>`
+	actions, err := ParseDecision(raw)
+	if err != nil {
+		t.Fatalf("ParseDecision single object: %v", err)
+	}
+	if len(actions) != 1 || actions[0].Action != "wait" {
+		t.Errorf("single object should normalize to one wait action: %+v", actions)
+	}
+}
+
+func TestParseDecisionSingleObjectInvalidAction(t *testing.T) {
+	// 单对象路径同样走六值校验
+	raw := `<decision>{"action":"buy_now","symbol":"BTC-USDT"}</decision>`
+	if _, err := ParseDecision(raw); err == nil || !strings.Contains(err.Error(), "invalid action") {
+		t.Errorf("expected invalid action error, got %v", err)
+	}
+}
+
 func TestParseDecisionNoBlock(t *testing.T) {
 	if _, err := ParseDecision("模型拒绝输出"); err == nil {
 		t.Errorf("expected error for no decision block")

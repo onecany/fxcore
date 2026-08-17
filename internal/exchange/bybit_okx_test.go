@@ -1,6 +1,10 @@
 package exchange
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,13 +19,29 @@ func readAllBody(r *http.Request) string {
 	return string(b)
 }
 
-// TestBybitSignedHeaders 验证 X-BAPI-* 签名头。
+// hmacSHA256Hex 重算 Bybit 签名（hex(HMAC-SHA256(ts+apiKey+recv+content), secret)）。
+func hmacSHA256Hex(secret, content string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(content))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// hmacSHA256B64 重算 OKX/KuCoin 签名（Base64(HMAC-SHA256(ts+method+path+body), secret)）。
+func hmacSHA256B64(secret, content string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(content))
+	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
+// TestBybitSignedHeaders 验证 X-BAPI-* 签名头（签名串须含 api_key，Bybit v5 官方规范）。
 func TestBybitSignedHeaders(t *testing.T) {
 	var gotSig, gotTS, gotKey string
+	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSig = r.Header.Get("X-BAPI-SIGN")
 		gotTS = r.Header.Get("X-BAPI-TIMESTAMP")
 		gotKey = r.Header.Get("X-BAPI-API-KEY")
+		gotBody = readAllBody(r)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "instruments-info"):
@@ -47,6 +67,35 @@ func TestBybitSignedHeaders(t *testing.T) {
 	}
 	if gotKey != "k" || gotTS == "" || gotSig == "" {
 		t.Errorf("headers missing: key=%s ts=%s sig=%s", gotKey, gotTS, gotSig)
+	}
+	// 签名串 = ts + api_key + recv_window + raw body（官方规范），缺 api_key 会报 10004 sign error
+	want := hmacSHA256Hex("s", gotTS+"k"+"5000"+gotBody)
+	if gotSig != want {
+		t.Errorf("X-BAPI-SIGN mismatch: got %s want %s (signature must include api_key)", gotSig, want)
+	}
+}
+
+// TestBybitGetQuerySign GET 签名须含 query string（官方：ts+api_key+recv_window+queryString）。
+func TestBybitGetQuerySign(t *testing.T) {
+	var gotSig, gotTS string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSig = r.Header.Get("X-BAPI-SIGN")
+		gotTS = r.Header.Get("X-BAPI-TIMESTAMP")
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "wallet-balance") {
+			_, _ = w.Write([]byte(`{"retCode":0,"result":{"list":[{"totalEquity":"100","coin":[{"coin":"USDT","walletBalance":"75.94"}]}]}}`))
+		} else {
+			_, _ = w.Write([]byte(`{"retCode":0,"result":{"list":[]}}`))
+		}
+	}))
+	defer srv.Close()
+	adapter, _ := newBybit(Credentials{ExchangeType: "bybit", APIKey: "k", SecretKey: "s", BaseURL: srv.URL})
+	if _, err := adapter.GetBalance(t.Context()); err != nil {
+		t.Fatalf("GetBalance: %v", err)
+	}
+	want := hmacSHA256Hex("s", gotTS+"k"+"5000"+"accountType=UNIFIED")
+	if gotSig != want {
+		t.Errorf("GET signature must include query string: got %s want %s", gotSig, want)
 	}
 }
 
@@ -95,14 +144,16 @@ func TestBybitGetFills(t *testing.T) {
 	}
 }
 
-// TestOKXSignedHeaders 验证 OK-ACCESS-* 头（含 passphrase）。
+// TestOKXSignedHeaders 验证 OK-ACCESS-* 头（含 passphrase）+ 签名可复算。
 func TestOKXSignedHeaders(t *testing.T) {
 	var gotSig, gotTs, gotKey, gotPass string
+	var gotBody string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotSig = r.Header.Get("OK-ACCESS-SIGN")
 		gotTs = r.Header.Get("OK-ACCESS-TIMESTAMP")
 		gotKey = r.Header.Get("OK-ACCESS-KEY")
 		gotPass = r.Header.Get("OK-ACCESS-PASSPHRASE")
+		gotBody = readAllBody(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"code":"0","data":[{"ordId":"okx-1","clOrdId":"cid","sCode":"0","sMsg":""}]}`))
 	}))
@@ -126,6 +177,33 @@ func TestOKXSignedHeaders(t *testing.T) {
 	// 纯数字（毫秒）会被 OKX 判 50102 Timestamp request expired（回归锁定）。
 	if _, err := time.Parse("2006-01-02T15:04:05.000Z", gotTs); err != nil {
 		t.Errorf("OK-ACCESS-TIMESTAMP 不是 ISO 8601 UTC 格式: %q", gotTs)
+	}
+	// 签名 = Base64(HMAC-SHA256(ts + method + requestPath + body))（官方规范）
+	want := hmacSHA256B64("s", gotTs+"POST"+"/api/v5/trade/order"+gotBody)
+	if gotSig != want {
+		t.Errorf("OK-ACCESS-SIGN mismatch: got %s want %s", gotSig, want)
+	}
+}
+
+// TestOKXQueryGetSign 带 query 的 GET 签名必须含完整 requestPath（官方：/api/v5/account/balance?ccy=BTC）。
+// 回归锁定 50113 Invalid Sign：砍掉 query 再签名会让 orders-pending/fills-history 等带参 GET 全挂。
+func TestOKXQueryGetSign(t *testing.T) {
+	var gotSig, gotTs string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSig = r.Header.Get("OK-ACCESS-SIGN")
+		gotTs = r.Header.Get("OK-ACCESS-TIMESTAMP")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"0","data":[]}`))
+	}))
+	defer srv.Close()
+	adapter, _ := newOKX(Credentials{ExchangeType: "okx", APIKey: "k", SecretKey: "s", Passphrase: "p", BaseURL: srv.URL})
+	if _, err := adapter.GetOpenOrders(t.Context()); err != nil {
+		t.Fatalf("GetOpenOrders: %v", err)
+	}
+	// requestPath 必须含 ?instType=SWAP
+	want := hmacSHA256B64("s", gotTs+"GET"+"/api/v5/trade/orders-pending?instType=SWAP")
+	if gotSig != want {
+		t.Errorf("GET signature must include full requestPath with query: got %s want %s", gotSig, want)
 	}
 }
 
