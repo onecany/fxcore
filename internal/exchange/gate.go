@@ -319,7 +319,8 @@ func (a *GateAdapter) SetLeverage(ctx context.Context, symbol string, leverage i
 func (a *GateAdapter) sign(ts, method, path, query, body string) string {
 	hash := sha512.Sum512([]byte(body))
 	mac := hmac.New(sha512.New, []byte(a.creds.SecretKey))
-	_, _ = mac.Write([]byte(fmt.Sprintf("%s\n%s\n%s\n%s", method, path, query, hex.EncodeToString(hash[:]))))
+	// 官方规范：签名串 = METHOD\nURL\nQUERY\nHEX(SHA512(body))\nTIMESTAMP（5 行，最后一行是 timestamp）
+	_, _ = mac.Write([]byte(fmt.Sprintf("%s\n%s\n%s\n%s\n%s", method, path, query, hex.EncodeToString(hash[:]), ts)))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
