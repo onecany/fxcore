@@ -397,11 +397,9 @@ func (a *OKXAdapter) request(ctx context.Context, method, path string, payload a
 	// OK-ACCESS-TIMESTAMP 必须是 ISO 8601 UTC（如 2020-12-08T09:08:57.715Z），
 	// 不能是 Unix 毫秒数字符串——OKX 解析毫秒数字会判 50102 Timestamp request expired。
 	ts := time.Now().UTC().Format("2006-01-02T15:04:05.000Z")
-	pathOnly := path
-	if i := strings.Index(path, "?"); i >= 0 {
-		pathOnly = path[:i]
-	}
-	sig := a.sign(ts, method, pathOnly, string(body))
+	// 签名串的 requestPath 必须含 query string（官方规范示例：GET /api/v5/account/balance?ccy=BTC），
+	// 砍掉 query 会让带参 GET（orders-pending/fills-history 等）报 50113 Invalid Sign。
+	sig := a.sign(ts, method, path, string(body))
 
 	req, err := http.NewRequestWithContext(ctx, method, a.base+path, strings.NewReader(string(body)))
 	if err != nil {
