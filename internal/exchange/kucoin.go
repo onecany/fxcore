@@ -425,11 +425,9 @@ func (a *KuCoinAdapter) request(ctx context.Context, method, path string, payloa
 		}
 	}
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
-	pathOnly := path
-	if i := strings.Index(path, "?"); i >= 0 {
-		pathOnly = path[:i]
-	}
-	sig := a.sign(ts, method, pathOnly, string(body))
+	// 签名串的 requestPath 必须含 query string（KuCoin 官方规范），
+	// 砍掉 query 会让带参 GET（orders/fills 等）报签名错误。
+	sig := a.sign(ts, method, path, string(body))
 
 	req, err := http.NewRequestWithContext(ctx, method, a.base+path, strings.NewReader(string(body)))
 	if err != nil {
