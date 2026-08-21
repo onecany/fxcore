@@ -2817,6 +2817,76 @@ html { scroll-padding-top: 72px; scroll-behavior: smooth; }
 .st-meta { font-size: 12px; margin-top: 2px; }
 .st-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .studio-empty { padding: 40px 0; text-align: center; }
+
+/* ===== Prompt Lint 金色警告面板 ===== */
+.lint-panel {
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  border-radius: var(--fxcore-r-md);
+  background: rgba(240, 185, 11, 0.05);
+  border: 1px solid rgba(240, 185, 11, 0.28);
+  box-shadow: inset 0 0 24px rgba(240, 185, 11, 0.04);
+  transition: opacity 0.2s;
+}
+.lint-panel.linting { opacity: 0.65; }
+.lint-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+}
+.lint-gold { color: var(--fxcore-accent); letter-spacing: 0.04em; }
+.lint-sub { font-size: 11px; }
+.lint-empty { display: block; font-size: 12.5px; color: var(--fxcore-text-faint); }
+.lint-pass {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; margin-right: 6px;
+  border-radius: 50%;
+  color: var(--fxcore-up);
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  font-size: 11px;
+}
+.lint-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lint-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 12px;
+  border-radius: var(--fxcore-r-sm);
+}
+.lint-item.lint-error {
+  background: rgba(244, 63, 94, 0.07);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+.lint-item.lint-warning {
+  background: rgba(240, 185, 11, 0.06);
+  border: 1px solid rgba(240, 185, 11, 0.22);
+}
+.lint-ico {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+}
+.lint-error .lint-ico { color: var(--fxcore-down); background: rgba(244, 63, 94, 0.14); }
+.lint-warning .lint-ico { color: var(--fxcore-accent); background: rgba(240, 185, 11, 0.14); }
+.lint-body { min-width: 0; }
+.lint-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fxcore-text);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lint-code { font-size: 10px; }
+.lint-detail { font-size: 12px; color: var(--fxcore-text-faint); margin-top: 2px; line-height: 1.55; }
 .sb-empty { padding: 14px 8px; font-size: 12px; }
 .sb-new { flex: 1; min-width: 0; }
 

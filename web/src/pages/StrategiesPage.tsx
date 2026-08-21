@@ -1,11 +1,11 @@
 // Strategies 页面：策略工作室（侧栏 + 毛玻璃 toolbar + 三栏编辑 + 底部 AI 试跑/提示词预览）。
 // 编辑三栏：左交易风格/风控 → 中用户提示词 → 右币源/K 线/指标；数据层 SWR + 5s 轮询。
 // 逻辑契约：draft 状态机、MergeConfigInto 部分合并、prompt_sections 逐字段合并（详见 editor-panels）。
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import * as strategyApi from '../api/v1/modules/strategies';
 import * as modelApi from '../api/v1/modules/models';
-import type { StrategyItem, CoinSourceConfig, AIModel, TestRunResult, KlineConfig, IndicatorConfig } from '../api/v1/types/contract';
+import type { StrategyItem, CoinSourceConfig, AIModel, TestRunResult, KlineConfig, IndicatorConfig, LintIssue } from '../api/v1/types/contract';
 import { PageHead, Alert, Terminal, Panel } from '../components/ui';
 import { ConfigColumn, PromptColumn, MarketColumn } from '../sections/strategies/editor-panels';
 import type { CsEditable } from '../sections/strategies/strategy-data';
@@ -23,6 +23,10 @@ export default function StrategiesPage() {
   const [testModelId, setTestModelId] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestRunResult | null>(null);
+  // Prompt Lint 状态:lintIssues（draft 优先的配置检查结果）+ 是否在检查中
+  const [lintIssues, setLintIssues] = useState<LintIssue[] | null>(null);
+  const [linting, setLinting] = useState(false);
+  const [lintError, setLintError] = useState<string | null>(null);
 
   // AI 模型列表（试跑选模型用）
   const { data: models } = useSWR<AIModel[]>(
@@ -196,6 +200,46 @@ export default function StrategiesPage() {
     setMsg(`「${p.name}」参数已暂存，点击保存生效`);
   };
 
+  // ===== Prompt Lint：选中策略/编辑变化时自动检查（draft 优先，同 test-run 语义） =====
+  const runLint = useCallback(async () => {
+    if (!selected) return;
+    setLinting(true); setLintError(null);
+    try {
+      const cfg = draft ? (draft as Record<string, unknown>) : selected.config;
+      const r = await strategyApi.lintConfig(cfg as never);
+      setLintIssues(r.issues ?? []);
+    } catch (err) {
+      setLintIssues(null);
+      setLintError(String(err));
+    } finally {
+      setLinting(false);
+    }
+  }, [selected, draft]);
+
+  // 立即检查跟随选中策略 id（runLint 引用会随 draft 变化,用 ref 保持选中触发稳定,
+  // 否则编辑时「立即检查」与「防抖检查」双触发,每次击键打两个请求）
+  const runLintRef = useRef(runLint);
+  useEffect(() => {
+    runLintRef.current = runLint;
+  }, [runLint]);
+  useEffect(() => {
+    if (!selected) { setLintIssues(null); return; }
+    void runLintRef.current();
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 编辑 draft 时防抖检查（400ms，避免每次击键都打接口）
+  useEffect(() => {
+    if (!selected || !draft) return;
+    const t = setTimeout(() => void runLint(), 400);
+    return () => clearTimeout(t);
+  }, [draft, selected, runLint]);
+
+  // 选中切换清空 lint 残留（draft 为空时列表切换后 lint 结果即对上）
+  useEffect(() => {
+    setLintIssues(null);
+    setLintError(null);
+  }, [selectedId]);
+
   const save = async () => {
     if (!selected || !draft) return;
     setSaving(true); setError(null); setMsg(null);
@@ -303,6 +347,42 @@ export default function StrategiesPage() {
                   </button>
                   <button className="btn danger" onClick={() => void remove(selected.id)}>删除</button>
                 </div>
+              </div>
+
+              {/* ===== Prompt Lint 金色警告面板 ===== */}
+              <div className={`lint-panel ${linting ? 'linting' : ''}`} data-issues={lintIssues?.length ?? 0}>
+                {linting ? (
+                  <span className="lint-head mono">⌛ 配置检查中…</span>
+                ) : lintError ? (
+                  <span className="lint-empty dim">◇ 配置检查失败：{errMsg(lintError)}</span>
+                ) : !lintIssues || lintIssues.length === 0 ? (
+                  <span className="lint-empty">
+                    <span className="lint-pass">✓</span> 配置无冲突，另注意此检查基于当前编辑内容（未保存的修改同样生效）
+                  </span>
+                ) : (
+                  <>
+                    <div className="lint-head">
+                      <span className="lint-gold">◉ {lintIssues.length} 个配置提醒</span>
+                      <span className="lint-sub dim">
+                        {lintIssues.filter((i) => i.severity === 'error').length} 严重 ·{' '}
+                        {lintIssues.filter((i) => i.severity === 'warning').length} 建议
+                      </span>
+                    </div>
+                    <ul className="lint-list">
+                      {lintIssues.map((it, i) => (
+                        <li key={i} className={`lint-item lint-${it.severity}`}>
+                          <span className="lint-ico">{it.severity === 'error' ? '✕' : '⚠'}</span>
+                          <div className="lint-body">
+                            <div className="lint-title">
+                              {it.title} <span className="lint-code dim mono">{it.code} · {it.field}</span>
+                            </div>
+                            <div className="lint-detail">{it.detail}</div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
 
               {/* 编辑两栏：左风格/风控/币源 → 右提示词/K线/指标 */}

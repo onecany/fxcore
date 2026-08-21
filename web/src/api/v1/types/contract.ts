@@ -231,6 +231,25 @@ export interface UpdateStrategyRequest {
   name?: string; description?: string; config?: Partial<StrategyConfig>;
 }
 
+// ========== Prompt Lint（POST /strategies/lint） ==========
+export type LintSeverity = 'error' | 'warning';
+export interface LintIssue {
+  /** 规则代码（如 coin_static_empty），前端可精确过滤/渲染 */
+  code: string;
+  /** error | warning */
+  severity: LintSeverity;
+  /** 配置字段路径（如 risk_control.max_positions） */
+  field: string;
+  /** 短标题 */
+  title: string;
+  /** 可操作修复说明 */
+  detail: string;
+}
+export interface LintResponse {
+  /** 命中规则集合（空数组 = 无警告） */
+  issues: LintIssue[];
+}
+
 // ========== 决策 / 统计 ==========
 export type DecisionActionType = 'open_long' | 'open_short' | 'close_long' | 'close_short' | 'hold' | 'wait';
 export interface DecisionAction {
