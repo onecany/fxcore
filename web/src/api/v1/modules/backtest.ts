@@ -10,6 +10,7 @@ import type {
   BacktestTradeEvent,
   BacktestMetrics,
   DecisionRecord,
+  PaginatedData,
 } from '../types/contract';
 
 export type BacktestControlAction = 'pause' | 'resume' | 'stop';
@@ -61,8 +62,8 @@ export function backtestTrades(runId: string): Promise<BacktestTradeEvent[]> {
   return client.get<BacktestTradeEvent[]>('/backtest/trades', { params: { run_id: runId } });
 }
 
-/** 绩效指标（completed 前返回 202 就绪信号） */
-export function backtestMetrics(runId: string): Promise<{ ready: boolean; metrics?: BacktestMetrics }> {
+/** 绩效指标（未就绪时后端 202 + data:null → client 解信封为 null；就绪返回 metrics 本体） */
+export function backtestMetrics(runId: string): Promise<BacktestMetrics | null> {
   return client.get('/backtest/metrics', { params: { run_id: runId } });
 }
 
@@ -71,8 +72,8 @@ export function backtestTrace(runId: string, cycle: number): Promise<DecisionRec
   return client.get<DecisionRecord>('/backtest/trace', { params: { run_id: runId, cycle } });
 }
 
-/** 决策记录（分页） */
-export function backtestDecisions(runId: string, page?: number, size?: number): Promise<{ items: DecisionRecord[]; total: number }> {
+/** 决策记录（分页信封 {items, pagination}） */
+export function backtestDecisions(runId: string, page?: number, size?: number): Promise<PaginatedData<DecisionRecord>> {
   return client.get('/backtest/decisions', { params: { run_id: runId, page, size } });
 }
 

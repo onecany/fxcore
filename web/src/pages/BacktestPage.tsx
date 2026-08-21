@@ -7,6 +7,7 @@ import * as dataApi from '../api/v1/modules/data';
 import type { BacktestConfig, RunSummary, KlineDTO, BacktestState } from '../api/v1/types/contract';
 import { PageHead, Panel, Badge, Alert } from '../components/ui';
 import KlineChart from '../components/KlineChart';
+import RunDetail from '../sections/backtest/run-detail';
 import { useT } from '../stores/i18nStore';
 import { fmtTime } from '../utils/format';
 import { errMsg } from '../utils/errorCodes';
@@ -68,6 +69,26 @@ export default function BacktestPage() {
   );
   const runs = useMemo(() => data?.items ?? [], [data]);
   const hasActive = useMemo(() => runs.some((r) => r.state === 'running' || r.state === 'created'), [runs]);
+
+  // ===== 详情视图：选中 run 展开详情面板 =====
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const selectedRun = useMemo(() => runs.find((r) => r.runId === selectedRunId) ?? null, [runs, selectedRunId]);
+
+  const toggleSelect = useCallback((runId: string) => {
+    setSelectedRunId((cur) => (cur === runId ? null : runId));
+  }, []);
+
+  const removeSelected = useCallback(() => {
+    if (!selectedRunId) return;
+    if (!window.confirm('删除该回测（含关联数据）？')) return;
+    void (async () => {
+      try {
+        await backtestApi.deleteBacktest(selectedRunId);
+        setSelectedRunId(null);
+        void mutate();
+      } catch (err) { setError(String(err)); }
+    })();
+  }, [selectedRunId, mutate]);
 
   // ===== K 线预览（提交态分离：输入不触发请求，拉取/回车才生效） =====
   const [klineForm, setKlineForm] = useState({ symbol: 'BTC-USDT', interval: '15m' });
@@ -291,8 +312,17 @@ export default function BacktestPage() {
           <div className="bt-run-grid">
             {runs.map((r) => {
               const pct = r.progressPct != null ? Math.round(r.progressPct * 100) : null;
+              const sel = r.runId === selectedRunId;
               return (
-                <div className="bt-run-card" key={r.runId}>
+                <div
+                  className={`bt-run-card${sel ? ' selected' : ''}`}
+                  key={r.runId}
+                  onClick={() => toggleSelect(r.runId)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSelect(r.runId); } }}
+                  title={sel ? '收起详情' : '展开详情'}
+                >
                   <div className="bt-run-head">
                     <span className="bt-run-id mono">{r.label || r.runId.slice(0, 10)}</span>
                     <span className="bt-run-state">
@@ -325,7 +355,7 @@ export default function BacktestPage() {
                       <span className="bt-metric-value mono bt-metric-syms">{(r.symbols ?? []).join(', ') || String(r.symbolCount ?? '—')}</span>
                     </div>
                   </div>
-                  <div className="bt-run-actions">
+                  <div className="bt-run-actions" onClick={(e) => e.stopPropagation()}>
                     {r.state === 'running' && <button className="btn btn-sm" onClick={() => void control(r.runId, 'pause')}>⏸ 暂停</button>}
                     {r.state === 'paused' && <button className="btn primary btn-sm" onClick={() => void control(r.runId, 'resume')}>▶ 恢复</button>}
                     {(r.state === 'running' || r.state === 'paused') && (
@@ -339,6 +369,13 @@ export default function BacktestPage() {
           </div>
         )}
       </Panel>
+      {selectedRun && (
+        <RunDetail
+          run={selectedRun}
+          onClose={() => setSelectedRunId(null)}
+          onRemoved={() => void removeSelected()}
+        />
+      )}
     </section>
   );
 }
