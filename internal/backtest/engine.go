@@ -330,8 +330,16 @@ func (e *Engine) getRun(runID string) (*run, *middleware.APIError) {
 	defer e.mu.Unlock()
 	r, ok := e.runs[runID]
 	if !ok {
-		if _, exists := e.store.GetBacktestRun(runID, ""); exists {
-			// store 有记录但进程内无控制（进程重启）——返回一个终结态 run
+		if rec, exists := e.store.GetBacktestRun(runID, ""); exists {
+			// store 有记录但进程内无控制（进程重启）——
+			// 终态 run 从 DB 恢复真实状态（重启后历史回测的指标/详情仍可查）；
+			// 运行中态引擎已不持有控制（goroutine 随进程消亡），映射 failed 防止对无控制 run 误操作。
+			switch rec.State {
+			case dto.BacktestCompleted, dto.BacktestStopped, dto.BacktestLiquidated, dto.BacktestFailed:
+				var cfg dto.BacktestConfig
+				_ = json.Unmarshal([]byte(rec.ConfigJSON), &cfg)
+				return &run{state: rec.State, cfg: cfg, equity: rec.EquityLast, liquidated: rec.Liquidated, lastError: rec.LastError}, nil
+			}
 			return &run{state: dto.BacktestFailed, lastError: "engine restarted"}, nil
 		}
 		return nil, middleware.BacktestNotFound("run not found")
