@@ -194,8 +194,19 @@ for r, cyc, sym, act, side, qty, price, fee, slip, pnl, lev, cycle, pa, liq in b
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (rid(), bt_id, int(time.time())-86400+cyc*3600, sym, act, side, qty, price, fee, slip, qty*price, pnl, lev, cycle, pa, liq, ""))
 for cyc in range(1,5):
+    # payload 必须是完整 DecisionRecord（引擎 Trace/Decisions 会 unmarshal 成 model.DecisionRecord）：
+    # 缺 cycle_number/timestamp/decisions 会让前端 Cycle #0、trace 查不到；
+    # decision_json 供执行日志组件解析动作时间线（缺则 actions 显示 0）
+    sym = random.choice(["BTCUSDT", "ETHUSDT"])
+    act = "open_long" if cyc % 2 else "wait"
     cur.execute("INSERT INTO backtest_decisions (id,run_id,cycle,payload) VALUES (?,?,?,?)",
-                (rid(), bt_id, cyc, json.dumps({"symbol":random.choice(["BTCUSDT","ETHUSDT"]),"action":"open_long" if cyc%2 else "wait","confidence":0.72})))
+                (rid(), bt_id, cyc, json.dumps({
+                    "id": rid(), "trader_id": "", "cycle_number": cyc,
+                    "timestamp": datetime.utcfromtimestamp(int(time.time())-86400+cyc*3600).isoformat()+"Z",
+                    "decisions": [{"action": act, "symbol": sym, "confidence": 0.72, "reasoning": "seed fixture decision"}],
+                    "decision_json": json.dumps([{"action": act, "symbol": sym, "confidence": 0.72}]),
+                    "success": True,
+                })))
 cur.execute("INSERT INTO backtest_checkpoints (run_id,payload) VALUES (?,?)",
             (bt_id, json.dumps({"symbols":["BTCUSDT"],"cycle":5,"equity":10482.5})))
 
