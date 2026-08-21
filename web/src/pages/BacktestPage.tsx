@@ -347,7 +347,7 @@ export default function BacktestPage() {
                     <div className="bt-metric">
                       <span className="bt-metric-label">回撤</span>
                       <span className="bt-metric-value mono" style={{ color: (r.maxDrawdownPct ?? 0) > 0 ? 'var(--fxcore-down)' : undefined }}>
-                        {r.maxDrawdownPct != null ? `${(r.maxDrawdownPct * 100).toFixed(1)}%` : '—'}
+                        {r.maxDrawdownPct != null ? `${r.maxDrawdownPct.toFixed(1)}%` : '—'}
                       </span>
                     </div>
                     <div className="bt-metric">
