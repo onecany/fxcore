@@ -188,6 +188,7 @@ func NewRouter(d Deps) *gin.Engine {
 		read.GET("/strategies/:id", strategyH.Get)
 		write.POST("/strategies", strategyH.Create)
 		write.POST("/strategies/preview-prompt", strategyH.PreviewPrompt)
+		write.POST("/strategies/lint", strategyH.Lint)
 		write.POST("/strategies/test-run", strategyH.TestRun)
 		write.PUT("/strategies/:id", strategyH.Update)
 		write.DELETE("/strategies/:id", strategyH.Delete)

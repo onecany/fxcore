@@ -254,6 +254,35 @@ func (h *StrategyHandler) PreviewPrompt(c *gin.Context) {
 	middleware.WriteOK(c, map[string]string{"prompt": kernel.BuildSystemPrompt(cfg)})
 }
 
+// Lint POST /strategies/lint
+// Lint 策略配置静态检查：合并默认值后跑 Prompt Lint 规则，返回命中警告。
+// @Summary 配置静态检查
+// @Description 对请求 config（与 preview-prompt 同构，先经 MergeConfigInto 合并默认值）执行静态规则检查，返回「会被引擎静默忽略或产生误导行为」的配置问题列表
+// @Tags strategies
+// @Accept json
+// @Produce json
+// @Param body body dto.LintRequest true "策略配置"
+// @Success 200 {object} dto.ApiResponse[dto.LintResponse]
+// @Failure 400 {object} dto.ErrorResponse "1001 非法 config"
+// @Router /strategies/lint [post]
+func (h *StrategyHandler) Lint(c *gin.Context) {
+	var req dto.LintRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.WriteError(c, middleware.BadRequest("invalid request body: "+err.Error(), nil))
+		return
+	}
+	cfg := service.DefaultConfig()
+	if apiErr := service.MergeConfigInto(&cfg, req.Config); apiErr != nil {
+		middleware.WriteError(c, apiErr)
+		return
+	}
+	issues := kernel.Lint(cfg)
+	if issues == nil {
+		issues = []dto.LintIssue{} // nil slice 序列化为 null → 前端 .length 崩（策略决策同类坑）
+	}
+	middleware.WriteOK(c, dto.LintResponse{Issues: issues})
+}
+
 // TestRun POST /strategies/test-run
 // TestRun AI 试跑：用指定模型跑当前配置构建的提示词，返回原始输出 + 解析决策。
 // @Summary AI 试跑分析

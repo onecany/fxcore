@@ -491,6 +491,52 @@
                 },
                 "type": "object"
             },
+            "fxcore_internal_api_v1_dto.LintIssue": {
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "规则代码(如 coin_static_empty)"
+                    },
+                    "detail": {
+                        "type": "string",
+                        "description": "可操作修复说明"
+                    },
+                    "field": {
+                        "type": "string",
+                        "description": "配置字段路径(如 risk_control.max_positions)"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "description": "error | warning"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "短标题"
+                    }
+                },
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.LintRequest": {
+                "properties": {
+                    "config": {
+                        "type": "object",
+                        "description": "策略配置 JSON(与 preview-prompt 同构)"
+                    }
+                },
+                "type": "object"
+            },
+            "fxcore_internal_api_v1_dto.LintResponse": {
+                "properties": {
+                    "issues": {
+                        "type": "array",
+                        "description": "命中规则集合(空数组=无警告)",
+                        "items": {
+                            "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.LintIssue"
+                        }
+                    }
+                },
+                "type": "object"
+            },
             "fxcore_internal_api_v1_dto.LoginRequest": {
                 "properties": {
                     "email": {
@@ -1464,6 +1510,47 @@
                 "summary": "平仓",
                 "tags": [
                     "positions"
+                ]
+            }
+        },
+        "/strategies/lint": {
+            "post": {
+                "description": "对请求 config 先合并默认值再执行静态规则检查，返回会被引擎静默忽略或产生误导行为的配置问题列表",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.LintRequest"
+                            }
+                        }
+                    },
+                    "description": "策略配置(与 preview-prompt 同构)"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ApiResponse-fxcore_internal_api_v1_dto_LintResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/fxcore_internal_api_v1_dto.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "1001 非法 config"
+                    }
+                },
+                "summary": "策略配置静态检查",
+                "tags": [
+                    "strategies"
                 ]
             }
         },

@@ -96,6 +96,7 @@ func strategyRouter(h *StrategyHandler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.POST("/strategies/test-run", h.TestRun)
+	r.POST("/strategies/lint", h.Lint)
 	return r
 }
 
@@ -269,5 +270,97 @@ func TestStrategyTestRunMissingModelID(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400 for missing model_id, got %d %s", w.Code, w.Body.String())
+	}
+}
+
+// ========== Prompt Lint 契约测试 ==========
+
+// lintResp 解析 lint 响应信封。
+func lintResp(t *testing.T, body []byte) dto.LintResponse {
+	t.Helper()
+	var env struct {
+		Data dto.LintResponse `json:"data"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("lint resp parse: %v (%s)", err, body)
+	}
+	return env.Data
+}
+
+// 合法配置（对齐默认值）→ 200 + issues 空数组（非 null）。
+func TestStrategyLintClean(t *testing.T) {
+	h, _, _ := strategyTestEnv(t, "")
+	r := strategyRouter(h)
+
+	body := `{"config":{"strategy_type":"ai","language":"zh","prompt_variant":"balanced","coin_source":{"source_type":"static","static_coins":["BTC-USDT"]},"indicators":{"klines":{"primary_timeframe":"15m","primary_count":200},"enable_raw_klines":true,"enable_ema":true,"ema_periods":[7,25,99]},"risk_control":{"max_positions":3,"btc_eth_max_leverage":5,"altcoin_max_leverage":5,"max_margin_usage":0.3,"min_risk_reward_ratio":1.5,"min_confidence":0.6},"prompt_sections":{"role_definition":"你是资深交易员。","trading_frequency":"每日最多 3 笔。","entry_standards":"EMA 金叉才进场。","decision_process":"先分析再决策。"}}}`
+	req := httptest.NewRequest(http.MethodPost, "/strategies/lint", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d %s", w.Code, w.Body.String())
+	}
+	data := lintResp(t, w.Body.Bytes())
+	if data.Issues == nil || len(data.Issues) != 0 {
+		t.Fatalf("clean config want empty issues array (non-null), got %+v", data.Issues)
+	}
+}
+
+// 静态币源空 + custom_prompt 跳过分析 → 命中两类规则。
+// 注意 risk_control 只传 max_positions（部分替换语义）也会因风险零值命中 lint——那正是 lint 的价值。
+func TestStrategyLintFindsIssues(t *testing.T) {
+	h, _, _ := strategyTestEnv(t, "")
+	r := strategyRouter(h)
+
+	body := `{"config":{"coin_source":{"source_type":"static","static_coins":[]},"risk_control":{"max_positions":3},"custom_prompt":"只输出决策，不要分析。"}}`
+	req := httptest.NewRequest(http.MethodPost, "/strategies/lint", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d %s", w.Code, w.Body.String())
+	}
+	data := lintResp(t, w.Body.Bytes())
+	byCode := map[string]dto.LintIssue{}
+	for _, it := range data.Issues {
+		byCode[it.Code] = it
+	}
+	if _, ok := byCode[dto.CodeCoinStaticEmpty]; !ok {
+		t.Fatalf("want coin_static_empty hit, got %+v", data.Issues)
+	}
+	if _, ok := byCode[dto.CodeTextContract]; !ok {
+		t.Fatalf("want text_contract hit, got %+v", data.Issues)
+	}
+	// 部分替换 risk_control 后其余字段为零值，lint 应同样命中（这是「配置会被静默误解」的核心价值）
+	if _, ok := byCode[dto.CodeRiskLeverageZero]; !ok {
+		t.Fatalf("want risk_leverage_zero hit for partial risk_control, got %+v", data.Issues)
+	}
+	if _, ok := byCode[dto.CodeRiskMarginZero]; !ok {
+		t.Fatalf("want risk_margin_zero hit for partial risk_control, got %+v", data.Issues)
+	}
+	for _, it := range data.Issues {
+		if it.Severity != dto.SeverityError && it.Severity != dto.SeverityWarning {
+			t.Fatalf("severity must be error|warning, got %q", it.Severity)
+		}
+		if it.Title == "" || it.Detail == "" || it.Field == "" {
+			t.Fatalf("issue must carry title/detail/field, got %+v", it)
+		}
+	}
+}
+
+// 非法 body（非 JSON）→ 400。
+func TestStrategyLintBadBody(t *testing.T) {
+	h, _, _ := strategyTestEnv(t, "")
+	r := strategyRouter(h)
+
+	req := httptest.NewRequest(http.MethodPost, "/strategies/lint", strings.NewReader("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 for bad body, got %d %s", w.Code, w.Body.String())
 	}
 }
